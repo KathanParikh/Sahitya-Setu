@@ -1,0 +1,41 @@
+# --- web layer -------------------------------------------------------------
+fastapi>=0.115
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9        # required by FastAPI for file uploads
+pydantic>=2.7
+python-dotenv>=1.0
+
+# --- pdf extraction --------------------------------------------------------
+PyMuPDF>=1.24                  # digital PDFs (imported as `fitz`)
+pdf2image>=1.17                # scanned PDFs; needs the poppler binaries
+pytesseract>=0.3.10            # needs the tesseract binary + guj language pack
+Pillow>=10.3
+
+# --- indexing and retrieval ------------------------------------------------
+sentence-transformers>=3.0     # pulls in torch and transformers
+rank-bm25>=0.2.2
+chromadb>=0.5
+
+# --- qa pipeline -----------------------------------------------------------
+langgraph>=0.2,<1.0            # pinned: see the version note below
+google-genai>=1.0              # current Gemini SDK (`from google import genai`)
+groq>=0.11                     # backup provider
+
+# --- evaluation ------------------------------------------------------------
+# Heavy and only needed for /api/evaluate. Install with:
+#   pip install -r requirements.txt
+# or skip this block if you are not running RAGAS.
+#
+# Version note: ragas declares its langchain dependencies unpinned, and
+# langchain-community 0.4 removed the module ragas imports at load time
+# (`langchain_community.chat_models.vertexai`), so an unpinned install of the
+# newest of everything fails on `import ragas`. The pins below hold the whole
+# langchain generation together: langchain-core 0.3.x, which langgraph <1.0
+# and every wrapper here agree on.
+ragas>=0.2.14,<0.3
+langchain-core>=0.3,<1.0
+langchain-community>=0.3,<0.4
+langchain-google-genai>=2.0,<3.0
+langchain-groq>=0.2,<1.0
+langchain-huggingface>=0.1,<0.3
+datasets>=2.20

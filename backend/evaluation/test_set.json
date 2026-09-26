@@ -1,0 +1,84 @@
+{
+  "_readme": [
+    "Hand-written evaluation cases for RAGAS. Replace the examples below with",
+    "questions about the book you actually upload — the ground_truth must be",
+    "copied from the book, because context_recall scores retrieval against it.",
+    "",
+    "Fields:",
+    "  question   - asked exactly as a user would, in Gujarati or English.",
+    "  ground_truth - the correct answer, taken from the book. Required for",
+    "               context_recall; leave '' only for unanswerable cases.",
+    "  answerable - false for questions the book cannot answer. These test the",
+    "               'not found' fallback and are excluded from RAGAS scoring,",
+    "               feeding refusal_recall instead.",
+    "  expected_pages - optional page numbers the citation should land on.",
+    "  doc_id     - optional. Omit to run the case against any book; set it to",
+    "               pin a case to one uploaded document.",
+    "",
+    "Aim for 20-30 answerable cases and 5-10 unanswerable ones. Mix factual",
+    "lookups, character questions, and questions whose answer sits in one",
+    "specific paragraph (those are what BM25 rescues when the embedding misses)."
+  ],
+  "cases": [
+    {
+      "question": "આ પુસ્તકના મુખ્ય પાત્રનું નામ શું છે?",
+      "ground_truth": "REPLACE: the main character's name, as the book states it.",
+      "answerable": true,
+      "expected_pages": []
+    },
+    {
+      "question": "વાર્તાની શરૂઆત કયા સ્થળે થાય છે?",
+      "ground_truth": "REPLACE: the place where the story opens.",
+      "answerable": true,
+      "expected_pages": []
+    },
+    {
+      "question": "પ્રથમ પ્રકરણમાં કઈ મુખ્ય ઘટના બને છે?",
+      "ground_truth": "REPLACE: the central event of chapter 1.",
+      "answerable": true,
+      "expected_pages": []
+    },
+    {
+      "question": "લેખકે આ કૃતિમાં કયો મુખ્ય સંદેશ આપ્યો છે?",
+      "ground_truth": "REPLACE: the theme as the text itself states it.",
+      "answerable": true,
+      "expected_pages": []
+    },
+    {
+      "question": "Who is the narrator of this book?",
+      "ground_truth": "REPLACE: an English-language case, to check cross-lingual retrieval.",
+      "answerable": true,
+      "expected_pages": []
+    },
+    {
+      "question": "REPLACE: a question naming a minor character or village that appears only once — this is the case BM25 should rescue.",
+      "ground_truth": "REPLACE: the answer.",
+      "answerable": true,
+      "expected_pages": []
+    },
+    {
+      "question": "આ પુસ્તકના લેખકનો જન્મ ક્યારે થયો હતો?",
+      "ground_truth": "",
+      "answerable": false,
+      "_why": "Biographical fact about the author, not content of the book. The system must refuse rather than answer from the LLM's own knowledge."
+    },
+    {
+      "question": "ભારતની રાજધાની કઈ છે?",
+      "ground_truth": "",
+      "answerable": false,
+      "_why": "General knowledge the LLM certainly knows. Answering it proves the grounding has failed."
+    },
+    {
+      "question": "આ પુસ્તકનું વેચાણ કેટલી નકલોમાં થયું?",
+      "ground_truth": "",
+      "answerable": false,
+      "_why": "Plausible-sounding but absent from the text — the hallucination trap."
+    },
+    {
+      "question": "What does the author say about quantum mechanics?",
+      "ground_truth": "",
+      "answerable": false,
+      "_why": "Off-topic for a literary work; tests refusal in English."
+    }
+  ]
+}
