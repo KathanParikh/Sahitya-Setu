@@ -12,7 +12,13 @@ pytesseract>=0.3.10            # needs the tesseract binary + guj language pack
 Pillow>=10.3
 
 # --- indexing and retrieval ------------------------------------------------
-sentence-transformers>=3.0     # pulls in torch and transformers
+# Upper bounds matter: torch 2.5+ dropped the Intel-Mac wheel, so on an
+# Intel Mac pip resolves to torch 2.2.2, which transformers 5.x and
+# numpy 2.x refuse to load against. The pins below are the newest
+# compatible with that torch build.
+numpy<2                        # torch 2.2 is numpy-1 ABI
+sentence-transformers>=3.0,<4
+transformers>=4.40,<5
 rank-bm25>=0.2.2
 chromadb>=0.5
 
