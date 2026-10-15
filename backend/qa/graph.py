@@ -25,7 +25,7 @@ from typing import Annotated, Any, Dict, List, Optional, Sequence, TypedDict
 
 import config
 from indexing.hybrid_search import RetrievedChunk, hybrid_search
-from qa import prompt_builder
+from qa import grounding, prompt_builder
 from qa.llm_client import BaseLLM, LLMError, get_llm
 
 logger = logging.getLogger(__name__)
@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 # ------------------------------------------------------------- state -------
 class QAState(TypedDict, total=False):
     doc_id: str
+    book_title: str
     original_question: str
     question: str               # the current (possibly rewritten) query
     language: str               # "gujarati" | "english"
@@ -156,7 +157,8 @@ def generate_node(state: QAState, llm: Optional[BaseLLM] = None) -> Dict[str, An
     chunks = state.get("relevant") or []
     language = state.get("language") or prompt_builder.detect_language(state["original_question"])
 
-    prompt = prompt_builder.build_answer_prompt(state["original_question"], chunks, language)
+    prompt = prompt_builder.build_answer_prompt(state["original_question"], chunks, language,
+                                                book_title=state.get("book_title"))
     try:
         llm = llm or get_llm()
         answer = llm.generate(prompt, system=prompt_builder.ANSWER_SYSTEM)
@@ -178,12 +180,72 @@ def generate_node(state: QAState, llm: Optional[BaseLLM] = None) -> Dict[str, An
             "trace": [_note("generate", outcome="model reported NOT_FOUND")],
         }
 
+    # Third line of defence: citations, quotes, numbers and every claim are
+    # checked against the passages (qa.grounding). A failing answer gets one
+    # regeneration with the specific problems listed; if that fails too,
+    # nothing unverified is shown.
+    try:
+        grounded, problems, checked = _verify(answer, chunks, llm)
+    except LLMError as exc:
+        return _verifier_down(exc, [])
+    first_problems: List[str] = []
+    if problems:
+        first_problems = problems
+        logger.warning("Answer failed grounding, regenerating: %s", first_problems)
+        try:
+            answer = llm.generate(
+                prompt_builder.build_regrounding_prompt(prompt, answer, first_problems),
+                system=prompt_builder.ANSWER_SYSTEM,
+            )
+        except LLMError as exc:
+            return _verifier_down(exc, first_problems)
+        if "NOT_FOUND" in answer.upper():
+            return {
+                "answer": "", "found": False,
+                "trace": [_note("generate", outcome="model reported NOT_FOUND on regeneration",
+                                problems=first_problems)],
+            }
+        try:
+            grounded, problems, checked = _verify(answer, chunks, llm)
+        except LLMError as exc:
+            return _verifier_down(exc, first_problems)
+        if problems:
+            logger.warning("Regenerated answer failed grounding: %s", problems)
+            return {
+                "answer": "", "found": False,
+                "trace": [_note("generate", outcome="failed grounding check",
+                                problems=first_problems, regenerated_problems=problems)],
+            }
+
     return {
-        "answer": answer,
+        "answer": grounded.answer,
         "found": True,
         "citations": [_citation(c) for c in chunks],
         "trace": [_note("generate", outcome="answered", passages=len(chunks),
-                        answer_chars=len(answer))],
+                        answer_chars=len(grounded.answer),
+                        quotes_corrected=grounded.snapped,
+                        claims_llm_verified=checked,
+                        regenerated_after=first_problems)],
+    }
+
+
+def _verify(answer: str, chunks, llm):
+    """Deterministic checks first; the LLM claim check only if they pass."""
+    grounded = grounding.check_answer(answer, chunks)
+    if grounded.problems:
+        return grounded, list(grounded.problems), 0
+    problems, checked = grounding.verify_claims(grounded.answer, chunks, llm)
+    return grounded, problems, checked
+
+
+def _verifier_down(exc: Exception, problems: List[str]) -> Dict[str, Any]:
+    # An answer that cannot be verified is not shown, and an outage is not
+    # "the book does not say": report it as a service error.
+    logger.error("Answer could not be generated or verified: %s", exc)
+    return {
+        "answer": "", "found": False, "llm_error": str(exc)[:300],
+        "trace": [_note("generate", outcome="verification unavailable",
+                        problems=problems, error=str(exc)[:200])],
     }
 
 
@@ -273,13 +335,15 @@ def reset_graph() -> None:
 
 
 # ------------------------------------------------------------- entry -------
-def answer_question(doc_id: str, question: str, app=None) -> Dict[str, Any]:
+def answer_question(doc_id: str, question: str, app=None,
+                    book_title: str = "") -> Dict[str, Any]:
     """Run one question through the graph and return an API-shaped result."""
     app = app or get_graph()
     started = time.time()
 
     initial: QAState = {
         "doc_id": doc_id,
+        "book_title": book_title,
         "original_question": question,
         "question": question,
         "language": prompt_builder.detect_language(question),
@@ -308,4 +372,23 @@ def answer_question(doc_id: str, question: str, app=None) -> Dict[str, Any]:
         "retrieved": [c.to_dict() for c in (final.get("documents") or [])],
         "trace": final.get("trace", []),
         "elapsed_seconds": round(time.time() - started, 2),
+    }
+
+
+def run_qa(doc_id: str, question: str,
+           book_title: str = "Uploaded Document", app=None) -> Dict[str, Any]:
+    """Compact result shape from the project brief, for shell testing."""
+    result = answer_question(doc_id, question, app=app, book_title=book_title)
+    if result["llm_error"]:
+        raise LLMError(result["llm_error"])
+    return {
+        "answer": result["answer"],
+        "found": result["found"],
+        "sources": [
+            {"page_no": c["page_start"], "chapter": c["chapter_title"],
+             "text": c["snippet"][:200]}
+            for c in result["citations"]
+        ],
+        "question_used": result["queries_tried"][-1] if result["queries_tried"] else question,
+        "retries": result["rewrites_used"],
     }

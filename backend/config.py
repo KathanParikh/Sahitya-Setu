@@ -67,6 +67,7 @@ RRF_K = int(os.getenv("SS_RRF_K", 60))
 
 # ------------------------------------------------------- langgraph qa -------
 MAX_QUERY_REWRITES = int(os.getenv("SS_MAX_QUERY_REWRITES", 2))
+MAX_RETRIES = MAX_QUERY_REWRITES  # name used in the project brief
 # How many of the top-k chunks must be graded relevant to proceed to answering.
 MIN_RELEVANT_CHUNKS = int(os.getenv("SS_MIN_RELEVANT_CHUNKS", 1))
 
@@ -78,18 +79,28 @@ LLM_PROVIDER = os.getenv("SS_LLM_PROVIDER", "gemini")  # "gemini" | "groq"
 LLM_AUTO_FALLBACK = os.getenv("SS_LLM_AUTO_FALLBACK", "true").lower() == "true"
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-# The project brief specifies Gemini 1.5 Flash, but that model is no longer
-# served to API keys created after mid-2025. 2.0 Flash is the free-tier
-# replacement; override with SS_GEMINI_MODEL if your key still has 1.5.
-GEMINI_MODEL = os.getenv("SS_GEMINI_MODEL", "gemini-2.0-flash")
+# The project brief specifies Gemini 1.5 Flash, but 1.5 and 2.0 Flash have
+# both been shut down. 3.8 Flash is Google's current stable Flash model;
+# override with SS_GEMINI_MODEL to use another.
+GEMINI_MODEL = os.getenv("SS_GEMINI_MODEL", "gemini-3.8-flash")
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-# Likewise llama-3.1-70b-versatile was decommissioned by Groq.
-GROQ_MODEL = os.getenv("SS_GROQ_MODEL", "llama-3.3-70b-versatile")
+# Likewise llama-3.1-70b-versatile was decommissioned by Groq, and
+# llama-3.3-70b-versatile is no longer served to new keys. gpt-oss-120b is a
+# Groq production model and the one the Step 3 QA evaluation passed with.
+GROQ_MODEL = os.getenv("SS_GROQ_MODEL", "openai/gpt-oss-120b")
 
 LLM_TEMPERATURE = float(os.getenv("SS_LLM_TEMPERATURE", 0.1))
 LLM_MAX_OUTPUT_TOKENS = int(os.getenv("SS_LLM_MAX_OUTPUT_TOKENS", 2048))
 LLM_MAX_RETRIES = int(os.getenv("SS_LLM_MAX_RETRIES", 3))
+# Retry pacing for 429/5xx. The provider's own retry hint (Retry-After header,
+# Gemini's RetryInfo) takes precedence over the exponential backoff.
+LLM_RETRY_BASE_DELAY = float(os.getenv("SS_LLM_RETRY_BASE_DELAY", 2))
+# A 429 that gives no hint still waits this long: free tiers count requests
+# per minute, so an immediate retry lands in the same exhausted window.
+LLM_RATE_LIMIT_MIN_WAIT = float(os.getenv("SS_LLM_RATE_LIMIT_MIN_WAIT", 10))
+# Give up rather than wait longer than this for one retry.
+LLM_MAX_RETRY_WAIT = float(os.getenv("SS_LLM_MAX_RETRY_WAIT", 60))
 
 
 # ------------------------------------------------------- summarization ------

@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import pickle
 import re
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
@@ -18,9 +19,13 @@ import config
 
 logger = logging.getLogger(__name__)
 
-# Keep letters and digits of any script, drop punctuation. \w under re.UNICODE
-# already covers the Gujarati block.
-_TOKEN_RE = re.compile(r"[^\W_]+", re.UNICODE)
+# Bumped whenever tokenize() changes: stored corpus tokens from an older
+# version no longer match what queries tokenize to.
+TOKENIZER_VERSION = 2
+
+# Zero-width (non-)joiners steer glyph shaping only; inside a word they would
+# split it in two.
+_ZERO_WIDTH = dict.fromkeys(map(ord, "\u200c\u200d"))
 
 # High-frequency Gujarati function words carry no discriminative signal and
 # inflate BM25 scores for long chunks.
@@ -32,8 +37,17 @@ GUJARATI_STOPWORDS = {
 }
 
 
+def _is_word_char(ch: str) -> bool:
+    # Gujarati vowel signs, anusvara and virama are combining marks (Mn/Mc),
+    # which \w does not match: a \w+ tokenizer cuts "નાટકમાં" into "ન" and
+    # "ટકમ". Marks belong to the word they sit on.
+    return ch.isalnum() or unicodedata.category(ch)[0] == "M"
+
+
 def tokenize(text: str, remove_stopwords: bool = True) -> List[str]:
-    tokens = [t.lower() for t in _TOKEN_RE.findall(text or "")]
+    text = unicodedata.normalize("NFC", (text or "").translate(_ZERO_WIDTH))
+    words = "".join(ch if _is_word_char(ch) else " " for ch in text).split()
+    tokens = [t.lower() for t in words]
     if remove_stopwords:
         tokens = [t for t in tokens if t not in GUJARATI_STOPWORDS]
     return tokens
@@ -97,17 +111,37 @@ class BM25Index:
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "wb") as fh:
             pickle.dump(
-                {"version": 1, "chunk_ids": self.chunk_ids, "corpus_tokens": self.corpus_tokens},
+                {"version": TOKENIZER_VERSION, "chunk_ids": self.chunk_ids,
+                 "corpus_tokens": self.corpus_tokens},
                 fh,
                 protocol=pickle.HIGHEST_PROTOCOL,
             )
         return path
 
     @classmethod
-    def load(cls, path: str | Path) -> "BM25Index":
+    def load(cls, path: str | Path, doc_id: Optional[str] = None) -> "BM25Index":
         with open(path, "rb") as fh:
             payload = pickle.load(fh)
+        if payload.get("version", 1) < TOKENIZER_VERSION and doc_id:
+            return cls._retokenize(doc_id, payload["chunk_ids"])
         return cls(payload["chunk_ids"], payload["corpus_tokens"])
+
+    @classmethod
+    def _retokenize(cls, doc_id: str, chunk_ids: Sequence[str]) -> "BM25Index":
+        """Rebuild an index saved by an older tokenizer, in memory.
+
+        The pickle holds tokens, not text, so the text comes from the vector
+        store. The file on disk is left alone; re-uploading the book writes a
+        current one.
+        """
+        from indexing import vector_store
+
+        rows = vector_store.get_by_ids(doc_id, list(chunk_ids))
+        texts = [rows.get(cid, {}).get("text", "") for cid in chunk_ids]
+        logger.warning("BM25 index for %s predates tokenizer v%d; re-tokenized "
+                       "%d chunks in memory.", doc_id, TOKENIZER_VERSION, len(rows))
+        tokens = [tokenize(t) or ["\u0000"] for t in texts]
+        return cls(chunk_ids, tokens)
 
 
 def index_path_for(doc_id: str) -> Path:
@@ -126,7 +160,7 @@ def get_index(doc_id: str) -> Optional[BM25Index]:
     if not path.exists():
         return None
     try:
-        _cache[doc_id] = BM25Index.load(path)
+        _cache[doc_id] = BM25Index.load(path, doc_id)
         return _cache[doc_id]
     except Exception as exc:
         logger.error("Could not load BM25 index for %s: %s", doc_id, exc)

@@ -3,7 +3,8 @@
 Everything above this module calls `generate()` and never imports a vendor
 SDK, so switching the whole system between Gemini and Groq is one line in
 config.py. Both providers are on free tiers with tight per-minute limits, so
-retries use exponential backoff and an optional cross-provider fallback.
+only transient errors (429/5xx/network) are retried, waiting as long as the
+provider asks, and there is an optional cross-provider fallback.
 """
 from __future__ import annotations
 
@@ -53,11 +54,19 @@ class BaseLLM(ABC):
             except Exception as exc:
                 last_error = exc
                 logger.warning("%s attempt %d/%d failed: %s",
-                               self.name, attempt + 1, max_retries, exc)
-            if attempt < max_retries - 1:
-                # Jittered backoff: free tiers are per-minute quotas, and a
-                # synchronised retry storm just burns the next minute too.
-                time.sleep((2 ** attempt) + random.uniform(0, 1))
+                               self.name, attempt + 1, max_retries, _short(exc))
+                if not is_transient(exc):
+                    # Bad key, unknown model, malformed request: retrying
+                    # only spends quota on the same answer.
+                    raise LLMError(f"{self.name} failed: {exc}") from exc
+            if attempt == max_retries - 1:
+                break
+            delay = retry_delay(last_error, attempt)
+            if delay is None:
+                raise LLMError(f"{self.name} quota exhausted, not retrying: "
+                               f"{_short(last_error)}") from last_error
+            logger.info("%s retrying in %.1fs", self.name, delay)
+            time.sleep(delay)
         raise LLMError(f"{self.name} failed after {max_retries} attempts: {last_error}")
 
     def generate_json(
@@ -69,6 +78,89 @@ class BaseLLM(ABC):
         """Generate and parse JSON, tolerating the fences models like to add."""
         raw = self.generate(prompt, system=system, temperature=temperature)
         return parse_json_response(raw)
+
+
+# ---------------------------------------------------------- retry policy ----
+# Rate limits, overload and gateway errors clear up on their own; anything
+# else with a status code (400/401/403/404) will fail identically next time.
+_TRANSIENT_STATUS = {408, 429, 500, 502, 503, 504}
+_RETRY_IN = re.compile(r"retry in ([\d.]+)\s*s", re.IGNORECASE)
+
+
+def _status(exc: Exception) -> Optional[int]:
+    """HTTP status from a google-genai (`.code`) or groq (`.status_code`) error."""
+    for attr in ("code", "status_code"):
+        value = getattr(exc, attr, None)
+        if isinstance(value, int):
+            return value
+    return None
+
+
+def _short(exc: Exception) -> str:
+    return str(exc).split("{", 1)[0].strip()[:200] or type(exc).__name__
+
+
+def is_transient(exc: Exception) -> bool:
+    status = _status(exc)
+    if status is None:
+        # No status means it never reached the API (timeout, dropped
+        # connection) or the response was empty — both worth another try.
+        return True
+    return status in _TRANSIENT_STATUS
+
+
+def _is_daily_quota(exc: Exception) -> bool:
+    # Gemini names the exhausted quota, e.g. "GenerateRequestsPerDayPerProject...".
+    # A daily cap will not reset within any wait worth making.
+    return _status(exc) == 429 and "PerDay" in str(exc)
+
+
+def provider_retry_after(exc: Exception) -> Optional[float]:
+    """Seconds the provider asked us to wait, if it said."""
+    response = getattr(exc, "response", None)
+    headers = getattr(response, "headers", None)
+    if headers is not None:
+        try:
+            return float(headers.get("retry-after"))
+        except (TypeError, ValueError):
+            pass  # absent, or the rarely used HTTP-date form
+
+    # google.rpc.RetryInfo inside the error body: {"retryDelay": "8s"}
+    details = getattr(exc, "details", None)
+    error = details.get("error", details) if isinstance(details, dict) else {}
+    for item in error.get("details", []) if isinstance(error, dict) else []:
+        if isinstance(item, dict) and "retryDelay" in item:
+            try:
+                return float(str(item["retryDelay"]).rstrip("s"))
+            except ValueError:
+                break
+
+    match = _RETRY_IN.search(str(exc))
+    return float(match.group(1)) if match else None
+
+
+def retry_delay(exc: Optional[Exception], attempt: int) -> Optional[float]:
+    """How long to wait before retry `attempt + 1`, or None to stop now.
+
+    The provider's own guidance wins; without it, back off exponentially. A
+    429 without guidance waits at least RATE_LIMIT_MIN_WAIT, since free tiers
+    count requests per minute and a quick retry lands in the same window.
+    """
+    if exc is not None and _is_daily_quota(exc):
+        return None
+    backoff = config.LLM_RETRY_BASE_DELAY * (2 ** attempt)
+    hinted = provider_retry_after(exc) if exc is not None else None
+    if hinted is not None:
+        delay = max(hinted, backoff)
+    elif exc is not None and _status(exc) == 429:
+        delay = max(config.LLM_RATE_LIMIT_MIN_WAIT, backoff)
+    else:
+        delay = backoff
+    if delay > config.LLM_MAX_RETRY_WAIT:
+        # Better to fail over to the backup provider than stall a request.
+        return None
+    # Jitter so concurrent requests don't all retry on the same second.
+    return delay + random.uniform(0, 1)
 
 
 def parse_json_response(raw: str) -> Any:
@@ -141,7 +233,9 @@ class GroqLLM(BaseLLM):
     def _get_client(self):
         if self._client is None:
             from groq import Groq
-            self._client = Groq(api_key=self.api_key)
+            # max_retries=0: BaseLLM.generate owns retries; the SDK's own
+            # would multiply every attempt into three requests.
+            self._client = Groq(api_key=self.api_key, max_retries=0)
         return self._client
 
     def _complete(self, prompt: str, system: Optional[str], temperature: float) -> str:
@@ -226,6 +320,11 @@ def get_llm() -> BaseLLM:
     if _singleton is None:
         _singleton = build_llm()
     return _singleton
+
+
+def call_llm(prompt: str) -> str:
+    """One-shot completion on whichever provider config.LLM_PROVIDER selects."""
+    return get_llm().generate(prompt)
 
 
 def reset_llm() -> None:
