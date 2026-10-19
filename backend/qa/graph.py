@@ -224,6 +224,7 @@ def generate_node(state: QAState, llm: Optional[BaseLLM] = None) -> Dict[str, An
         "trace": [_note("generate", outcome="answered", passages=len(chunks),
                         answer_chars=len(grounded.answer),
                         quotes_corrected=grounded.snapped,
+                        citations_moved=grounded.pages_moved,
                         claims_llm_verified=checked,
                         regenerated_after=first_problems)],
     }
@@ -232,6 +233,17 @@ def generate_node(state: QAState, llm: Optional[BaseLLM] = None) -> Dict[str, An
 def _verify(answer: str, chunks, llm):
     """Deterministic checks first; the LLM claim check only if they pass."""
     grounded = grounding.check_answer(answer, chunks)
+    if grounded.problems:
+        # A right claim on the wrong page of its passage: cite the page that
+        # holds it, then require the whole check to pass again.
+        snapped, moved = grounding.snap_citations(grounded.answer, chunks)
+        if moved:
+            retry = grounding.check_answer(snapped, chunks)
+            if not retry.problems:
+                logger.info("Citation moved to the page that states it: %s", moved)
+                retry.snapped = grounded.snapped + retry.snapped
+                retry.pages_moved = moved
+                grounded = retry
     if grounded.problems:
         return grounded, list(grounded.problems), 0
     problems, checked = grounding.verify_claims(grounded.answer, chunks, llm)

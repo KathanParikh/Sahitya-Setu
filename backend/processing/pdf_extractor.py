@@ -74,6 +74,31 @@ def _meaningful_char_count(text: str) -> int:
     return sum(1 for ch in text if ch.isalpha())
 
 
+def _is_legacy_glyph(ch: str) -> bool:
+    return "\u0080" <= ch <= "ɏ"
+
+
+def _readable_char_count(text: str) -> int:
+    """Like _meaningful_char_count, but letters from a legacy font don't count."""
+    return sum(1 for ch in text if ch.isalpha() and not _is_legacy_glyph(ch))
+
+
+def is_legacy_encoded(text: str) -> bool:
+    """True when the text layer comes from a legacy (pre-Unicode) Gujarati font.
+
+    Fonts like those in older Gujarati DTP software put Gujarati glyphs at
+    Latin-1 codepoints, so PyMuPDF extracts "±ë ÕëÌuÕðVÖÀ" instead of
+    Gujarati. Those are letters to isalpha(), so the page looks like plenty of
+    text and would never reach OCR. Real text, Gujarati or English, has
+    almost no Latin-1/Latin Extended letters; such pages are mostly them.
+    """
+    letters = [ch for ch in text if ch.isalpha()]
+    if len(letters) < config.DIGITAL_TEXT_MIN_CHARS:
+        return False
+    legacy = sum(1 for ch in letters if _is_legacy_glyph(ch))
+    return legacy / len(letters) > config.LEGACY_GLYPH_RATIO
+
+
 # ------------------------------------------------------------------- ocr ----
 _ocr_ready: Optional[bool] = None
 
@@ -163,11 +188,17 @@ def extract_pages(pdf_path: str | Path, use_ocr: bool = True) -> List[Page]:
             text = clean_text(raw)
             source = "digital"
 
-            if _meaningful_char_count(text) < config.DIGITAL_TEXT_MIN_CHARS:
+            legacy = is_legacy_encoded(text)
+            if legacy:
+                # The text layer is glyph codes, not Gujarati: never index it,
+                # whether or not OCR can replace it.
+                text = ""
+                source = "empty"
+            if legacy or _meaningful_char_count(text) < config.DIGITAL_TEXT_MIN_CHARS:
                 if use_ocr and _ensure_ocr():
                     try:
                         ocr_text = clean_text(ocr_page(pdf_path, index + 1))
-                        if _meaningful_char_count(ocr_text) > _meaningful_char_count(text):
+                        if _readable_char_count(ocr_text) > _readable_char_count(text):
                             text, source = ocr_text, "ocr"
                         else:
                             source = "empty" if not text else "digital"
@@ -175,6 +206,11 @@ def extract_pages(pdf_path: str | Path, use_ocr: bool = True) -> List[Page]:
                         logger.warning("OCR failed on page %d: %s", index + 1, exc)
                         source = "empty" if not text else "digital"
                 else:
+                    # With use_ocr=False the caller OCRs empty pages itself
+                    # (qa/pages.py), so only a failed OCR setup is worth a warning.
+                    if legacy and use_ocr:
+                        logger.warning("Page %d uses a legacy non-Unicode font and OCR "
+                                       "is unavailable; skipping it.", index + 1)
                     source = "empty" if not text else "digital"
 
             pages.append(Page(page_number=index + 1, text=text, source=source))

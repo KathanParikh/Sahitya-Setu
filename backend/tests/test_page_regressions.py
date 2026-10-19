@@ -87,39 +87,31 @@ class FailedParaphrases(unittest.TestCase):
         self.assertIn("claim adds words", " ".join(r.problems))
 
 
-class EvaluationJudging(unittest.TestCase):
-    """The live run reported U3-U8 as passing when only the page check had
-    rejected them. A rejection now counts only for the expected reason."""
+class CitationCorrection(unittest.TestCase):
+    """2026-10-16 live run on the Std 8 textbook: right answers were refused
+    because the model cited the neighbouring page of a two-page passage. The
+    graph now moves such a citation to the page that states the claim."""
 
-    def setUp(self):
-        from evaluation.live_qa_eval import judge_verification
-        self.judge = judge_verification
+    def test_range_or_other_page_is_moved_to_the_exact_page(self):
+        for case, text, passage, exact, other in FAILED_CASES:
+            lo, hi = sorted((int(exact), int(other)))
+            for cited in (f"પાનાં {lo}-{hi}", f"પાનું {other}"):
+                answer, moved = grounding.snap_citations(f"{text} ({cited})", [passage])
+                self.assertEqual(moved, [(cited, f"પાનું {exact}")], case)
+                self.assertTrue(grounding.check_answer(answer, [passage]).ok, case)
 
-    PAGE = "cites page(s) [14, 15], but this is on page(s) [15]: ..."
-    CONTENT = "claim not supported by its cited passages (adds a name): ..."
+    def test_exact_citation_is_left_alone(self):
+        text, passage, exact = FAILED_CASES[0][1], FAILED_CASES[0][2], FAILED_CASES[0][3]
+        answer = f"{text} (પાનું {exact})"
+        self.assertEqual(grounding.snap_citations(answer, [passage]), (answer, []))
 
-    def test_unsupported_probe_rejected_only_for_its_page_fails(self):
-        self.assertEqual(self.judge("reject-content", [self.PAGE]), "FAIL")
+    def test_unplaceable_claim_is_not_moved(self):
+        answer = "Vachik abhinaya is the play's dialogue (page 202)."
+        self.assertEqual(grounding.snap_citations(answer, [P201]), (answer, []))
 
-    def test_unsupported_probe_rejected_for_content_passes(self):
-        self.assertEqual(self.judge("reject-content", [self.CONTENT]), "PASS")
-        self.assertEqual(self.judge("reject-content", [self.CONTENT, self.PAGE]), "PASS")
-
-    def test_page_probe_must_fail_on_the_page_alone(self):
-        self.assertEqual(self.judge("reject-page", [self.PAGE]), "PASS")
-        self.assertEqual(self.judge("reject-page", [self.PAGE, self.CONTENT]), "FAIL")
-        self.assertEqual(self.judge("reject-page", []), "FAIL")
-
-    def test_paraphrase_must_have_no_problem_at_all(self):
-        self.assertEqual(self.judge("accept", []), "PASS")
-        self.assertEqual(self.judge("accept", [self.PAGE]), "FAIL")
-
-    def test_every_probe_cites_a_page_and_uses_a_known_expectation(self):
-        from evaluation.live_qa_eval import VERIFY_CASES
-        for case_id, expect, _, answer in VERIFY_CASES:
-            self.assertIn(expect, {"reject-content", "reject-page", "accept"}, case_id)
-            self.assertTrue(grounding._cited_pages(answer), case_id)
-        self.assertEqual(sum(e == "reject-page" for _, e, _, _ in VERIFY_CASES), 4)
+    def test_line_with_two_citations_is_not_moved(self):
+        answer = f"{FAILED_CASES[0][1]} (પાનું 202) અને (પાનું 15)"
+        self.assertEqual(grounding.snap_citations(answer, [P201, P15])[1], [])
 
 
 if __name__ == "__main__":

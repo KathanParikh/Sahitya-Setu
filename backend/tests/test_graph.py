@@ -2,7 +2,7 @@
 import unittest
 from unittest import mock
 
-from tests.helpers import P201, UNRELATED, ScriptedLLM
+from tests.helpers import P201, UNRELATED, ScriptedLLM, chunk
 import config
 from qa import graph, llm_client
 from qa.prompt_builder import not_found_answer
@@ -123,17 +123,17 @@ class ClaimVerificationInGraph(unittest.TestCase):
 
 
 class PageCitationInGraph(unittest.TestCase):
-    def test_range_citation_regenerates_into_the_exact_page(self):
-        llm = ScriptedLLM(answers=["“નાટકના સંવાદો એટલે નટોનો વાચિક અભિનય” (પાનાં 201-202)",
-                                   "“નાટકના સંવાદો એટલે નટોનો વાચિક અભિનય” (પાનું 201)"])
+    def test_range_citation_is_corrected_to_the_exact_page(self):
+        llm = ScriptedLLM(answers=["“નાટકના સંવાદો એટલે નટોનો વાચિક અભિનય” (પાનાં 201-202)"])
         r = run(llm, book)
         self.assertTrue(r["found"], r["trace"])
         self.assertIn("(પાનું 201)", r["answer"])
-        self.assertIn("is on page(s) [201]", llm.prompts[-1])  # feedback names the page
+        self.assertEqual(r["trace"][-1]["citations_moved"], [("પાનાં 201-202", "પાનું 201")])
 
     def test_page_that_cannot_be_confirmed_falls_back(self):
-        llm = ScriptedLLM(answers=["“નાટકના સંવાદો એટલે નટોનો વાચિક અભિનય” (પાનું 202)"])
-        r = run(llm, book)
+        unreadable = chunk(P201.text, 301, 302, "nodoc:1")  # no page text to place it
+        llm = ScriptedLLM(answers=["“નાટકના સંવાદો એટલે નટોનો વાચિક અભિનય” (પાનું 302)"])
+        r = run(llm, lambda d, q, top_k=None: [unreadable])
         self.assertFalse(r["found"])
         self.assertEqual(r["citations"], [])
 
@@ -220,3 +220,26 @@ class RunQA(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CitationCorrection(unittest.TestCase):
+    def test_right_claim_on_the_neighbouring_page_is_answered_with_the_exact_page(self):
+        llm = ScriptedLLM(relevant=lambda p: "વાચિક" in p,
+                          answers=["“નાટકના સંવાદો એટલે નટોનો વાચિક અભિનય” (પાનું 202)"])
+        r = run(llm, book)
+        self.assertTrue(r["found"], r["trace"])
+        self.assertIn("(પાનું 201)", r["answer"])
+        self.assertEqual(len(llm.prompts), 2)  # grade + answer; no regeneration needed
+
+    def test_wrong_content_is_still_refused(self):
+        llm = ScriptedLLM(relevant=lambda p: "વાચિક" in p, supported=lambda c: False,
+                          answers=["નાટકના સંવાદો એટલે નટોનો આંગિક અભિનય (પાનું 202)"])
+        r = run(llm, book)
+        self.assertFalse(r["found"])
+
+
+class GradePrompt(unittest.TestCase):
+    def test_grader_sees_the_end_of_a_long_passage(self):
+        from qa.prompt_builder import build_grade_prompt
+        long = chunk("ક" * 1000 + " રાણાએ સોનાની એક એક વીંટી અપાવી.", 30)
+        self.assertIn("વીંટી", build_grade_prompt("શું અપાવ્યું?", [long]))

@@ -200,9 +200,10 @@ def build_grade_prompt(question: str, chunks: Sequence) -> str:
     """
     listing: List[str] = []
     for i, chunk in enumerate(chunks, start=1):
-        # Grading needs the gist, not the whole passage.
-        snippet = chunk.text[:900]
-        listing.append(f"[{i}]\n{snippet}")
+        # The whole passage: the grader decides whether it states the answer,
+        # and in Gujarati a chunk often runs past 1,000 characters, so a cut
+        # hid the answer at the end of most passages.
+        listing.append(f"[{i}]\n{chunk.text}")
 
     return (
         f"Question: {question}\n\n"

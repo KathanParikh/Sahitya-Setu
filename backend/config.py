@@ -21,8 +21,11 @@ UPLOAD_DIR = DATA_DIR / "uploads"
 CHROMA_DIR = DATA_DIR / "chroma"
 BM25_DIR = DATA_DIR / "bm25"
 DB_PATH = DATA_DIR / "sahitya_setu.db"
+# Final text of every page as indexed (after OCR and header removal), read by
+# qa/pages.py to place citations on exact pages.
+PAGES_DIR = DATA_DIR / "pages"
 
-for _d in (DATA_DIR, UPLOAD_DIR, CHROMA_DIR, BM25_DIR):
+for _d in (DATA_DIR, UPLOAD_DIR, CHROMA_DIR, BM25_DIR, PAGES_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
 
@@ -30,6 +33,10 @@ for _d in (DATA_DIR, UPLOAD_DIR, CHROMA_DIR, BM25_DIR):
 # A page with fewer than this many extractable characters is treated as a
 # scanned image and routed through Tesseract instead of PyMuPDF.
 DIGITAL_TEXT_MIN_CHARS = int(os.getenv("SS_DIGITAL_TEXT_MIN_CHARS", 60))
+# A page whose letters are more than this fraction Latin-1/Latin Extended was
+# typeset in a legacy non-Unicode Gujarati font and is OCR'd instead. Such
+# pages measure 0.46-0.97; OCR'd and Unicode Gujarati measure ~0.
+LEGACY_GLYPH_RATIO = float(os.getenv("SS_LEGACY_GLYPH_RATIO", 0.3))
 # Tesseract language spec. "guj+eng" reads the mixed Gujarati/English that
 # real books carry (English proper nouns, page furniture, quoted text);
 # a "+"-joined spec loads both models for the same pass.

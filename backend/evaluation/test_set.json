@@ -17,68 +17,668 @@
     "",
     "Aim for 20-30 answerable cases and 5-10 unanswerable ones. Mix factual",
     "lookups, character questions, and questions whose answer sits in one",
-    "specific paragraph (those are what BM25 rescues when the embedding misses)."
+    "specific paragraph (those are what BM25 rescues when the embedding misses).",
+    "  required_terms - optional, for automatic scoring: a list of groups; the",
+    "               answer must contain at least one spelling from every group.",
+    "",
+    "The cases below were written from GujaratiBook.pdf (Gujarati, Std 8) and",
+    "checked against its OCR'd text; pages are PDF pages."
   ],
   "cases": [
     {
-      "question": "આ પુસ્તકના મુખ્ય પાત્રનું નામ શું છે?",
-      "ground_truth": "REPLACE: the main character's name, as the book states it.",
+      "question": "કરસનદાસ માણેકનો જન્મ ક્યાં થયો હતો?",
+      "ground_truth": "કરાંચીમાં",
       "answerable": true,
-      "expected_pages": []
+      "expected_pages": [
+        16
+      ],
+      "required_terms": [
+        [
+          "કરાંચી"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
     },
     {
-      "question": "વાર્તાની શરૂઆત કયા સ્થળે થાય છે?",
-      "ground_truth": "REPLACE: the place where the story opens.",
+      "question": "કરસનદાસ માણેકનું ઉપનામ શું હતું?",
+      "ground_truth": "વૈશંપાયન",
       "answerable": true,
-      "expected_pages": []
+      "expected_pages": [
+        16
+      ],
+      "required_terms": [
+        [
+          "વૈશંપાયન"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
     },
     {
-      "question": "પ્રથમ પ્રકરણમાં કઈ મુખ્ય ઘટના બને છે?",
-      "ground_truth": "REPLACE: the central event of chapter 1.",
+      "question": "'આ તો ઈશ તણો આવાસ' કાવ્ય પ્રમાણે મનુષ્ય ઈશ્વરના આવાસમાં શું છે?",
+      "ground_truth": "આમંત્રિત અતિથિ; નહિ સ્વામી નહિ દાસ",
       "answerable": true,
-      "expected_pages": []
+      "expected_pages": [
+        16
+      ],
+      "required_terms": [
+        [
+          "અતિથિ"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
     },
     {
-      "question": "લેખકે આ કૃતિમાં કયો મુખ્ય સંદેશ આપ્યો છે?",
-      "ground_truth": "REPLACE: the theme as the text itself states it.",
+      "question": "મનસુખ સલ્લાનો જન્મ ક્યાં થયો હતો?",
+      "ground_truth": "અમરેલી જિલ્લાના નેસડી ગામમાં",
       "answerable": true,
-      "expected_pages": []
+      "expected_pages": [
+        19
+      ],
+      "required_terms": [
+        [
+          "નેસડી"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
     },
     {
-      "question": "Who is the narrator of this book?",
-      "ground_truth": "REPLACE: an English-language case, to check cross-lingual retrieval.",
+      "question": "સાઇકલ પર બેસવાનું લેખકનું પહેલું સ્મરણ કોની સાથેનું છે?",
+      "ground_truth": "કેશુમામા ચલાળાથી સાઇકલ લઈને આવ્યા હતા અને આગળના દાંડિયા પર બેસાડી ગામમાં ફેરવ્યો હતો",
       "answerable": true,
-      "expected_pages": []
+      "expected_pages": [
+        19
+      ],
+      "required_terms": [
+        [
+          "કેશુમામા"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
     },
     {
-      "question": "REPLACE: a question naming a minor character or village that appears only once — this is the case BM25 should rescue.",
-      "ground_truth": "REPLACE: the answer.",
+      "question": "ગામમાં સાઇકલ સ્ટોર કોણે ખોલ્યો?",
+      "ground_truth": "સાવરકુંડલાના એક વહોરાજીએ",
       "answerable": true,
-      "expected_pages": []
+      "expected_pages": [
+        20
+      ],
+      "required_terms": [
+        [
+          "વહોરા"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
     },
     {
-      "question": "આ પુસ્તકના લેખકનો જન્મ ક્યારે થયો હતો?",
+      "question": "સાઇકલનું એક કલાકનું ભાડું કેટલું હતું?",
+      "ground_truth": "કલાકનો એક આનો",
+      "answerable": true,
+      "expected_pages": [
+        20
+      ],
+      "required_terms": [
+        [
+          "આનો"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "વાવના રાણાનું નામ શું હતું?",
+      "ground_truth": "વજેસંગજી",
+      "answerable": true,
+      "expected_pages": [
+        30
+      ],
+      "required_terms": [
+        [
+          "વજેસંગ"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "ખેડૂતની વહારે ચઢનાર મહિલાઓને રાણાએ શું અપાવ્યું?",
+      "ground_truth": "સોનાની એક એક વીંટી",
+      "answerable": true,
+      "expected_pages": [
+        30
+      ],
+      "required_terms": [
+        [
+          "વીંટી"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "ફાધર વાલેસનું મૂળ નામ શું હતું?",
+      "ground_truth": "કાર્લોસ ગોન્ઝલેઝ વાલેસ",
+      "answerable": true,
+      "expected_pages": [
+        39
+      ],
+      "required_terms": [
+        [
+          "કાર્લોસ"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "ફાધર વાલેસ ક્યાં ગણિતના અધ્યાપક હતા?",
+      "ground_truth": "અમદાવાદની સેન્ટ ઝેવિયર્સ કોલેજમાં",
+      "answerable": true,
+      "expected_pages": [
+        39
+      ],
+      "required_terms": [
+        [
+          "ઝેવિયર્સ"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "'ખોટો જવાબ' પાઠમાં ગણિતના દાખલાનો સાચો જવાબ શું હતો?",
+      "ground_truth": "20 (વીસ)",
+      "answerable": true,
+      "expected_pages": [
+        39
+      ],
+      "required_terms": [
+        [
+          "20",
+          "વીસ"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "છોકરાએ બાજુવાળાના કહેવાથી 20 છેકીને કયો જવાબ લખ્યો?",
+      "ground_truth": "25",
+      "answerable": true,
+      "expected_pages": [
+        39
+      ],
+      "required_terms": [
+        [
+          "25"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "બકોર પટેલે કારેલાંનાં વખાણ ક્યાં વાંચ્યાં?",
+      "ground_truth": "કોઈ ચોપાનિયામાં",
+      "answerable": true,
+      "expected_pages": [
+        44
+      ],
+      "required_terms": [
+        [
+          "ચોપાનિયા"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "ગોપાળદાસનો કાગળ ક્યાંથી આવ્યો હતો?",
+      "ground_truth": "પુનાથી",
+      "answerable": true,
+      "expected_pages": [
+        45
+      ],
+      "required_terms": [
+        [
+          "પુના"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "ગોપાળદાસ શેના શોખીન હતા?",
+      "ground_truth": "મીઠાઈના",
+      "answerable": true,
+      "expected_pages": [
+        45
+      ],
+      "required_terms": [
+        [
+          "મીઠાઈ"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "હરિપ્રસાદ વ્યાસનો જન્મ ક્યાં થયો હતો?",
+      "ground_truth": "બોડકા (જિ. વડોદરા)માં",
+      "answerable": true,
+      "expected_pages": [
+        44
+      ],
+      "required_terms": [
+        [
+          "બોડકા"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "જયંત પાઠકને કયા સુવર્ણચંદ્રકોથી નવાજવામાં આવ્યા?",
+      "ground_truth": "કુમાર, નર્મદ અને રણજિતરામ સુવર્ણચંદ્રક",
+      "answerable": true,
+      "expected_pages": [
+        54
+      ],
+      "required_terms": [
+        [
+          "કુમાર"
+        ],
+        [
+          "નર્મદ"
+        ],
+        [
+          "રણજિતરામ"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "ભોળાભાઈ પટેલનો જન્મ ક્યાં થયો હતો?",
+      "ground_truth": "ગાંધીનગર જિલ્લાના સોજા ગામે",
+      "answerable": true,
+      "expected_pages": [
+        58
+      ],
+      "required_terms": [
+        [
+          "સોજા"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "ભોળાભાઈ પટેલે કઈ ભાષામાંથી પુસ્તકોનો ગુજરાતીમાં અનુવાદ કર્યો?",
+      "ground_truth": "બંગાળીમાંથી",
+      "answerable": true,
+      "expected_pages": [
+        58
+      ],
+      "required_terms": [
+        [
+          "બંગાળી"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "અનુપની સાઇકલને શું થયું હતું?",
+      "ground_truth": "સાઇકલની ચેઈન ઊતરી ગઈ",
+      "answerable": true,
+      "expected_pages": [
+        67
+      ],
+      "required_terms": [
+        [
+          "ચેઈન",
+          "ચેઇન",
+          "ચેન"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "કીર્તિદા બ્રહ્મભટ્ટ ક્યાંનાં વતની છે?",
+      "ground_truth": "વિસનગરનાં",
+      "answerable": true,
+      "expected_pages": [
+        67
+      ],
+      "required_terms": [
+        [
+          "વિસનગર"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "'દુનિયા અમારી' ગીતમાં કોની અભિવ્યક્તિ છે?",
+      "ground_truth": "દૃષ્ટિહીન મનુષ્યની ઈશ્વરને સંબોધીને થયેલી અભિવ્યક્તિ",
+      "answerable": true,
+      "expected_pages": [
+        73
+      ],
+      "required_terms": [
+        [
+          "દષ્ટિહીન",
+          "દૃષ્ટિહીન"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "ઇન્સ્પેક્ટર કુમાર ક્યારે કાશ્મીર ગયા હતા?",
+      "ground_truth": "ગયા મે મહિનાની ગરમીમાં",
+      "answerable": true,
+      "expected_pages": [
+        90
+      ],
+      "required_terms": [
+        [
+          "મે મહિના"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "તખતમલ જૈન શું કામ કરતો હતો?",
+      "ground_truth": "કલકત્તાની એક મારવાડી પેઢીનો સેલ્સ મૅનેજર",
+      "answerable": true,
+      "expected_pages": [
+        91
+      ],
+      "required_terms": [
+        [
+          "સેલ્સ"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "તખતમલની કેટલી નોટો ગુમ થઈ હતી?",
+      "ground_truth": "બે-બે હજારની પંદર નોટો",
+      "answerable": true,
+      "expected_pages": [
+        91
+      ],
+      "required_terms": [
+        [
+          "પંદર"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "'ચીલઝડપ' વાર્તામાં હોટેલનો માલિક કોણ હતો?",
+      "ground_truth": "સૂરજસિંહ ડોગરા",
+      "answerable": true,
+      "expected_pages": [
+        91
+      ],
+      "required_terms": [
+        [
+          "ડોગરા"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "'ચીલઝડપ' વાર્તામાં પાકીટનો ચોર કોણ નીકળ્યો?",
+      "ground_truth": "કેળકર",
+      "answerable": true,
+      "expected_pages": [
+        93,
+        94
+      ],
+      "required_terms": [
+        [
+          "કેળકર"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "બાબુ ઓશરીમાં દીવાના અજવાળે વાંચતાં કયું વાક્ય વારંવાર બોલતો હતો?",
+      "ground_truth": "મીરજાફર નામનો નવાબ હતો",
+      "answerable": true,
+      "expected_pages": [
+        106,
+        107
+      ],
+      "required_terms": [
+        [
+          "મીરજાફર"
+        ]
+      ],
+      "doc_id": "f3b827d778e1",
+      "_note": "Made specific: Babu also repeats 'હૂડ દો' to the dogs on page 108."
+    },
+    {
+      "question": "ગૌરાંગને ક્યાં એડમિશન મળ્યું હતું?",
+      "ground_truth": "બહારગામની કૉલેજમાં (કેમિકલ એન્જિનિયરિંગ), અને કોલેજની હોસ્ટેલમાં",
+      "answerable": true,
+      "expected_pages": [
+        115
+      ],
+      "required_terms": [
+        [
+          "હોસ્ટેલ",
+          "કૉલેજ",
+          "કોલેજ"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "'જાત્રા ફળી !' પાઠમાં લેખકનો પગાર કેટલો હતો?",
+      "ground_truth": "સો રૂપિયા",
+      "answerable": true,
+      "expected_pages": [
+        124
+      ],
+      "required_terms": [
+        [
+          "સો રૂપિયા"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "ભૂપત વડોદરિયાનો જન્મ ક્યાં થયો હતો?",
+      "ground_truth": "ધ્રાંગધ્રામાં",
+      "answerable": true,
+      "expected_pages": [
+        124
+      ],
+      "required_terms": [
+        [
+          "ધ્રાંગધ્રા"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "'માંડી અમારી વાત' એકમમાં કયાં બે પાત્રોની એકોક્તિ આપી છે?",
+      "ground_truth": "માંડવી અને વિકર્ણ",
+      "answerable": true,
+      "expected_pages": [
+        137
+      ],
+      "required_terms": [
+        [
+          "માંડવી"
+        ],
+        [
+          "વિકર્ણ"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "માંડવીનાં લગ્ન કોની સાથે થયાં હતાં?",
+      "ground_truth": "ભરતજી સાથે",
+      "answerable": true,
+      "expected_pages": [
+        137
+      ],
+      "required_terms": [
+        [
+          "ભરત"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "મંગળ રાવળનું ઉપનામ શું છે?",
+      "ground_truth": "સ્નેહાતુર",
+      "answerable": true,
+      "expected_pages": [
+        154
+      ],
+      "required_terms": [
+        [
+          "સ્નેહાતુર"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "વાર્તાની બસ શરૂઆતમાં કયા નંબરના રૂટ પર ફરતી હતી?",
+      "ground_truth": "છત્રીસ નંબરના રૂટ પર",
+      "answerable": true,
+      "expected_pages": [
+        161
+      ],
+      "required_terms": [
+        [
+          "છત્રીસ"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "બસનો રૂટ બદલાયા પછી તેને કયો રૂટ ફાળવવામાં આવ્યો?",
+      "ground_truth": "અડતાલીસ નંબરનો રૂટ",
+      "answerable": true,
+      "expected_pages": [
+        161
+      ],
+      "required_terms": [
+        [
+          "અડતાલીસ"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "મીના ક્યાં નોકરી કરે છે?",
+      "ground_truth": "લાઇફ ઈન્સ્યોરન્સ કોર્પોરેશનમાં ઊંચા હોદ્દે",
+      "answerable": true,
+      "expected_pages": [
+        165
+      ],
+      "required_terms": [
+        [
+          "ઇન્સ્યોરન્સ",
+          "ઈન્સ્યોરન્સ",
+          "ઇન્સ્યુરન્સ"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "સુધા મૂર્તિને ભારત સરકાર તરફથી કયા પુરસ્કાર મળ્યા છે?",
+      "ground_truth": "પદ્મશ્રી અને પદ્મભૂષણ",
+      "answerable": true,
+      "expected_pages": [
+        165
+      ],
+      "required_terms": [
+        [
+          "પદ્મશ્રી"
+        ],
+        [
+          "પદ્મભૂષણ"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "'મામા' અને 'બાપા' શબ્દનો ઉચ્ચાર કરવા શું કરવું પડે છે?",
+      "ground_truth": "હોઠ અડાડવા જ પડે છે",
+      "answerable": true,
+      "expected_pages": [
+        26
+      ],
+      "required_terms": [
+        [
+          "હોઠ"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "Where was Father Vallace born?",
+      "ground_truth": "In Spain",
+      "answerable": true,
+      "expected_pages": [
+        39
+      ],
+      "required_terms": [
+        [
+          "Spain"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "In the story 'Chilzadap', who turned out to be the wallet thief?",
+      "ground_truth": "Kelkar",
+      "answerable": true,
+      "expected_pages": [
+        93,
+        94
+      ],
+      "required_terms": [
+        [
+          "Kelkar",
+          "કેળકર"
+        ]
+      ],
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "કરસનદાસ માણેકનું અવસાન કઈ સાલમાં થયું હતું?",
       "ground_truth": "",
       "answerable": false,
-      "_why": "Biographical fact about the author, not content of the book. The system must refuse rather than answer from the LLM's own knowledge."
+      "_why": "The book says he died in Vadodara but gives no year: the trap is the year.",
+      "doc_id": "f3b827d778e1"
     },
     {
-      "question": "ભારતની રાજધાની કઈ છે?",
+      "question": "ફાધર વાલેસનો જન્મ કઈ સાલમાં થયો હતો?",
       "ground_truth": "",
       "answerable": false,
-      "_why": "General knowledge the LLM certainly knows. Answering it proves the grounding has failed."
+      "_why": "Birthplace is given, the year is not.",
+      "doc_id": "f3b827d778e1"
     },
     {
-      "question": "આ પુસ્તકનું વેચાણ કેટલી નકલોમાં થયું?",
+      "question": "ઇન્સ્પેક્ટર કુમારની પત્નીનું નામ શું છે?",
       "ground_truth": "",
       "answerable": false,
-      "_why": "Plausible-sounding but absent from the text — the hallucination trap."
+      "_why": "The character is in the book; a wife is never mentioned.",
+      "doc_id": "f3b827d778e1"
     },
     {
-      "question": "What does the author say about quantum mechanics?",
+      "question": "ભારતના પ્રથમ વડાપ્રધાન કોણ હતા?",
       "ground_truth": "",
       "answerable": false,
-      "_why": "Off-topic for a literary work; tests refusal in English."
+      "_why": "General knowledge the LLM certainly knows; answering proves grounding failed.",
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "આ પાઠ્યપુસ્તકની કિંમત કેટલી છે?",
+      "ground_truth": "",
+      "answerable": false,
+      "_why": "Plausible for a textbook, absent from the text.",
+      "doc_id": "f3b827d778e1"
+    },
+    {
+      "question": "Who won the 2022 FIFA World Cup?",
+      "ground_truth": "",
+      "answerable": false,
+      "_why": "Off-topic; tests refusal in English.",
+      "doc_id": "f3b827d778e1"
     }
   ]
 }

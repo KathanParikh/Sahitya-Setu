@@ -163,7 +163,19 @@ def _plausible_title(text: str) -> bool:
     if text[0].isdigit() or text[0] in "૦૧૨૩૪૫૬૭૮૯":
         return False
     # OCR noise such as "- ૨" carries no letters at all.
-    return bool(re.search(r"[^\W\d_]", text)) and not _BARE_NUMBER.match(text)
+    if not re.search(r"[^\W\d_]", text) or _BARE_NUMBER.match(text):
+        return False
+    # OCR noise such as 'a હિ "' mixes stray symbols and lone Latin letters
+    # into Gujarati; a real title has none.
+    gujarati = bool(_GUJARATI_RANGE.search(text))
+    for word in text.split():
+        if word in "-–—:":
+            continue
+        if not any(ch.isalpha() or _GUJARATI_RANGE.match(ch) for ch in word):
+            return False
+        if gujarati and re.fullmatch(r"[A-Za-z]", word):
+            return False
+    return True
 
 
 def _parse_heading(line: str) -> Optional[tuple]:
@@ -231,13 +243,160 @@ def _page_candidates(page: Page, headers: set) -> List[tuple]:
     return found
 
 
+# An anthology or textbook opens each piece with its title and then the
+# author on a line of its own: "આ તો ઈશ તણો આવાસ" / "- કરસનદાસ માણેક".
+_BYLINE = re.compile(r"^\s*[-–—]\s*[“\"'‘]?(\S[^.?!।]{1,40}?)[”\"'’]?\s*$")
+_BYLINE_SCAN_LINES = 4
+# Minimum anthology openers before they are trusted over numbered headings.
+_MIN_BYLINE_CHAPTERS = 3
+
+
+def _byline_name(line: str) -> Optional[str]:
+    m = _BYLINE.match(line)
+    if not m:
+        return None
+    name = m.group(1).strip(" “”\"'‘’")
+    words = name.split()
+    if not 1 <= len(words) <= 4 or not _GUJARATI_RANGE.search(name):
+        return None
+    return name
+
+
+def _usable_title(line: str) -> bool:
+    """A title line OCR read cleanly enough to show (decorative fonts often fail)."""
+    # Vowel signs and the virama are not isalpha(); count the whole script.
+    letters = sum(1 for ch in line if ch.isalpha() or _GUJARATI_RANGE.match(ch))
+    return (len(_GUJARATI_RANGE.findall(line)) >= 4 and letters >= 0.6 * len(line.replace(" ", ""))
+            and len(line) <= 60)
+
+
+def _byline_opener(page: Page) -> Optional[tuple]:
+    """(title, title_is_real) for the piece that starts on this page, if one does.
+
+    Accepted when the author line near the top is either followed by the
+    author's biography (which opens with their name) or is the only author
+    line on the page beneath a title. That rejects epigraph pages, which
+    stack several quoted verses each with its poet, and dialogue lines that
+    happen to start with a dash. A title too garbled to show falls back to
+    the author's name (title_is_real False).
+    """
+    lines = [ln.strip() for ln in page.text.split("\n") if ln.strip()]
+    bylines = [i for i, ln in enumerate(lines) if _byline_name(ln)]
+    for i in bylines:
+        if i >= _BYLINE_SCAN_LINES:
+            break
+        name = _byline_name(lines[i])
+        title = lines[i - 1] if i > 0 else ""
+        has_title = bool(title) and _usable_title(title)
+        bio = " ".join(lines[i + 1:i + 5])
+        if name.split()[0] in bio or (has_title and len(bylines) == 1):
+            return (title, True) if has_title else (name, False)
+    return None
+
+
+def _byline_chapters(pages: Sequence[Page]) -> List[tuple]:
+    """(page_number, title, title_is_real) for every piece opener."""
+    found = []
+    for page in pages:
+        opener = _byline_opener(page) if page.text else None
+        if opener:
+            found.append((page.page_number, *opener))
+    return found
+
+
+# "ગઢની રઢ છોડો ! 14", "માંડી અમારી વાત... 122": a contents line ends in the
+# printed page number.
+_TOC_ENTRY = re.compile(r"^(.*?\S)[\s.…·]*\s([0-9૦-૯]{1,3})$")
+_TOC_KEY = re.compile(r"[\W_]+")
+
+
+def _toc_entries(pages: Sequence[Page]) -> List[tuple]:
+    """(printed_page, title) for each readable line of the contents pages."""
+    entries = []
+    for page in pages:
+        lines = [ln.strip() for ln in page.text.split("\n") if ln.strip()]
+        if not lines or not _CONTENTS_TITLE.match(lines[0]):
+            continue
+        for line in lines[1:]:
+            m = _TOC_ENTRY.match(line)
+            if m and _usable_title(m.group(1)):
+                entries.append((_to_int(m.group(2)), m.group(1).strip()))
+    return entries
+
+
+def _same_title(a: str, b: str) -> bool:
+    ka, kb = _TOC_KEY.sub("", a), _TOC_KEY.sub("", b)
+    return bool(ka) and bool(kb) and (ka in kb or kb in ka)
+
+
+def _apply_contents(openers: List[tuple], pages: Sequence[Page]) -> List[tuple]:
+    """Use the book's contents page to name and complete the piece openers.
+
+    The printed page numbers are offset from PDF pages by the front matter;
+    the offset is taken from contents entries whose titles were also read on
+    the page itself, and is trusted only when two or more agree. Then a
+    contents title replaces an author-name placeholder, and a listed piece
+    whose opener OCR missed entirely is added, unless a detected opener sits
+    within a page of it (a misread page number).
+    """
+    entries = _toc_entries(pages)
+    votes: Dict[int, int] = {}
+    for start, title, real in openers:
+        for printed, toc_title in entries:
+            if real and _same_title(title, toc_title):
+                votes[start - printed] = votes.get(start - printed, 0) + 1
+    if not votes:
+        return openers
+    offset, agreeing = max(votes.items(), key=lambda kv: kv[1])
+    if agreeing < 2:
+        return openers
+
+    by_page = {start: (title, real) for start, title, real in openers}
+    first, last = pages[0].page_number, pages[-1].page_number
+    for printed, toc_title in entries:
+        target = printed + offset
+        if not first <= target <= last:
+            continue
+        if target in by_page:
+            if not by_page[target][1]:
+                by_page[target] = (toc_title, True)
+        elif not any(abs(target - start) <= 1 for start in by_page):
+            by_page[target] = (toc_title, True)
+    return [(start, *by_page[start]) for start in sorted(by_page)]
+
+
+def _to_chapters(kept: Sequence[tuple], pages: Sequence[Page]) -> List[Chapter]:
+    last_page = pages[-1].page_number if pages else 0
+    chapters: List[Chapter] = []
+    for i, (start_page, title) in enumerate(kept):
+        end_page = kept[i + 1][0] - 1 if i + 1 < len(kept) else last_page
+        chapters.append(
+            Chapter(index=i, title=title, start_page=start_page, end_page=max(end_page, start_page))
+        )
+    return chapters
+
+
 def detect_chapters(pages: Sequence[Page]) -> List[Chapter]:
     """Scan the book for chapter headings and turn them into page ranges.
 
     Only the first few lines of each page are considered: in a typeset book a
     chapter heading starts a page, while the same words appearing mid-page are
     almost always a cross-reference ("જેમ પ્રકરણ ૨ માં જોયું...").
+
+    A book whose pieces open with title + author line (anthologies, school
+    textbooks) is split on those; numbered exercise lines inside such a book
+    would otherwise pass for chapter headings.
     """
+    openers = _byline_chapters(pages)
+    if len(openers) >= _MIN_BYLINE_CHAPTERS:
+        openers = _apply_contents(openers, pages)
+        return _to_chapters([(start, title) for start, title, _ in openers], pages)
+    # Too few openers to outrank numbered headings, but better than nothing
+    # (an excerpt holding one or two pieces).
+    return _numbered_chapters(pages) or _to_chapters([(s, t) for s, t, _ in openers], pages)
+
+
+def _numbered_chapters(pages: Sequence[Page]) -> List[Chapter]:
     headers = _running_headers(pages)
 
     found: List[tuple] = []  # (page_number, level, number, title)
@@ -274,13 +433,7 @@ def detect_chapters(pages: Sequence[Page]) -> List[Chapter]:
     if not kept:
         return []
 
-    last_page = pages[-1].page_number if pages else 0
-    chapters: List[Chapter] = []
-    for i, (start_page, title) in enumerate(kept):
-        end_page = kept[i + 1][0] - 1 if i + 1 < len(kept) else last_page
-        chapters.append(
-            Chapter(index=i, title=title, start_page=start_page, end_page=max(end_page, start_page))
-        )
+    chapters = _to_chapters(kept, pages)
 
     # A "chapter" every other page is heading noise, not structure.
     if len(pages) and len(chapters) > max(3, len(pages) // 3):

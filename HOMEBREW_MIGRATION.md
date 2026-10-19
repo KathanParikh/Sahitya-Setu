@@ -48,3 +48,15 @@ The disk is still at 97% — worth a proper cleanup.
 
 The Intel Homebrew at /usr/local is still in place and still cannot build
 formulas. The migration above remains the right long-term fix.
+
+## Update (2026-10-16): migration complete, OCR installed via Homebrew
+
+arm64 Homebrew is at /opt/homebrew and /usr/local/Homebrew is gone.
+~/.local/tesseract no longer exists. OCR now comes from:
+
+    brew install poppler tesseract          # tesseract 5.5.3
+    curl -L -o /opt/homebrew/share/tessdata/guj.traineddata \
+      https://github.com/tesseract-ocr/tessdata_best/raw/main/guj.traineddata
+
+backend/.env sets SS_TESSERACT_CMD and SS_POPPLER_PATH to /opt/homebrew/bin
+so OCR works even when that directory is not on PATH.

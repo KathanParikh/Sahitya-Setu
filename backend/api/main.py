@@ -24,6 +24,7 @@ import config
 from db import database
 from indexing import bm25_index, embedder, vector_store
 from processing import chunker, pdf_extractor
+from qa import pages as page_store
 from qa.graph import answer_question
 from qa.llm_client import configured_providers
 from summarization import summarizer
@@ -131,6 +132,7 @@ def process_document(doc_id: str, pdf_path: Path, use_ocr: bool = True,
 
         database.set_status(doc_id, "processing", progress="building keyword index")
         bm25_path = bm25_index.build_and_save(doc_id, chunks)
+        page_store.save_book_pages(doc_id, pages)
 
         meta = pdf_extractor.extract_metadata(pdf_path)
         database.update_document(
@@ -320,6 +322,7 @@ def delete_document(doc_id: str) -> Dict[str, str]:
 
     vector_store.delete_document(doc_id)
     bm25_index.delete_index(doc_id)
+    page_store.delete_book_pages(doc_id)
     if document.get("file_path"):
         Path(document["file_path"]).unlink(missing_ok=True)
     database.delete_document(doc_id)

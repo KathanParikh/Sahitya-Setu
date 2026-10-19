@@ -110,6 +110,7 @@ class GroundingResult:
     answer: str
     snapped: List[Tuple[str, str]] = field(default_factory=list)  # (model's, book's)
     problems: List[str] = field(default_factory=list)
+    pages_moved: List[Tuple[str, str]] = field(default_factory=list)  # (cited, corrected)
 
     @property
     def ok(self) -> bool:
@@ -417,6 +418,55 @@ def page_problems(answer: str, chunks: Sequence) -> List[str]:
                 problems.append(f"cites page(s) {sorted(cited)}, but this is on page(s) "
                                 f"{sorted(located)}: {claim.text[:50]}")
     return problems
+
+
+def _page_label(pages: Sequence[int], gujarati: bool) -> str:
+    pages = sorted(pages)
+    if len(pages) == 1:
+        return f"{'પાનું' if gujarati else 'page'} {pages[0]}"
+    run = pages == list(range(pages[0], pages[-1] + 1))
+    numbers = f"{pages[0]}-{pages[-1]}" if run else ", ".join(map(str, pages))
+    return f"{'પાનાં' if gujarati else 'pages'} {numbers}"
+
+
+def snap_citations(answer: str, chunks: Sequence) -> Tuple[str, List[Tuple[str, str]]]:
+    """Rewrite a line's page citation to the pages that actually hold its claim.
+
+    page_problems rejects a citation of a multi-page passage unless it names
+    exactly the pages whose text states the claim. When those pages can be
+    established, the citation is moved there instead, the way a misspelt
+    quote is snapped to the book's text. Only lines with a single citation
+    are touched, and only when every cited passage could be read and placed;
+    the answer must still pass check_answer afterwards.
+
+    Returns (answer, [(old citation, new citation), ...]).
+    """
+    lines = answer.split("\n")
+    moved: List[Tuple[str, str]] = []
+    for k, line in enumerate(lines):
+        matches = list(_CITATION_RE.finditer(line))
+        claims = extract_claims(line, chunks)
+        if len(matches) != 1 or len(claims) != 1 or not claims[0].passages:
+            continue
+        claim = claims[0]
+        located: set = set()
+        for chunk in claim.passages:
+            if chunk.page_end <= chunk.page_start:
+                located |= _pages(chunk) & claim.pages
+                continue
+            found = locate_pages(claim, chunk)
+            if not found:
+                located = set()
+                break
+            located |= found
+        if not located or located == claim.pages:
+            continue
+        m = matches[0]
+        old = m.group(0).rstrip(" ,;")
+        new = _page_label(located, _is_gujarati(line))
+        lines[k] = line[:m.start()] + new + line[m.start() + len(old):]
+        moved.append((old, new))
+    return "\n".join(lines), moved
 
 
 def verify_claims(answer: str, chunks: Sequence, llm) -> Tuple[List[str], int]:
