@@ -8,20 +8,20 @@ and the client polls /api/documents/{doc_id} for status.
 from __future__ import annotations
 
 import logging
-import shutil
 import uuid
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from contextlib import asynccontextmanager
 
-from fastapi import BackgroundTasks, FastAPI, File, HTTPException, Query, UploadFile
+from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 import config
-from db import database
+from api.auth import check_limit, current_user
+from db import database, file_store
 from indexing import bm25_index, embedder, vector_store
 from processing import chunker, pdf_extractor
 from qa import pages as page_store
@@ -35,8 +35,16 @@ logger = logging.getLogger("sahitya_setu")
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     database.init_db()
+    interrupted = database.fail_interrupted_documents()
+    if interrupted:
+        logger.warning("Marked %d interrupted upload(s) as failed.", interrupted)
+    for leftover in config.TEMP_UPLOAD_DIR.glob("*.pdf"):
+        leftover.unlink()
+    # Load the embedding model now, so the first question doesn't wait for it.
+    embedder.warm_up()
     logger.info("Sahitya Setu ready. LLM provider: %s", config.LLM_PROVIDER)
     yield
+    database.close_db()
 
 
 app = FastAPI(
@@ -88,6 +96,13 @@ class UploadResponse(BaseModel):
 
 
 # ------------------------------------------------------- ingestion job ----
+def _user_message(exc: Exception) -> str:
+    """Our own ValueErrors are written for readers; anything else may hold server details."""
+    if isinstance(exc, ValueError):
+        return str(exc)[:1000]
+    return "This file could not be processed. Please check that it is a valid PDF."
+
+
 def process_document(doc_id: str, pdf_path: Path, use_ocr: bool = True,
                      original_name: str = "") -> None:
     """The full ingestion pipeline. Runs in the background; never raises out."""
@@ -125,16 +140,17 @@ def process_document(doc_id: str, pdf_path: Path, use_ocr: bool = True,
         )
         embeddings = embedder.embed_passages([c.text for c in chunks], show_progress=True)
 
-        database.set_status(doc_id, "processing", progress="building vector index")
+        database.set_status(doc_id, "processing", progress="saving to the database")
         # Re-uploading the same file id must not double-index it.
         vector_store.delete_document(doc_id)
         vector_store.add_chunks(doc_id, chunks, embeddings)
-
-        database.set_status(doc_id, "processing", progress="building keyword index")
-        bm25_path = bm25_index.build_and_save(doc_id, chunks)
+        bm25_index.delete_index(doc_id)
         page_store.save_book_pages(doc_id, pages)
 
         meta = pdf_extractor.extract_metadata(pdf_path)
+        # Last, so a failure above never leaves a PDF without a searchable book.
+        database.set_status(doc_id, "processing", progress="saving the PDF")
+        stored_name = file_store.upload(doc_id, pdf_path)
         database.update_document(
             doc_id,
             # The file on disk is named after the doc_id, so fall back to the
@@ -144,7 +160,7 @@ def process_document(doc_id: str, pdf_path: Path, use_ocr: bool = True,
             page_count=stats["total_pages"],
             chunk_count=len(chunks),
             chapter_count=len(chapters),
-            bm25_path=str(bm25_path),
+            file_path=stored_name,
             extraction_stats=stats,
             status="ready",
             progress="ready",
@@ -154,7 +170,18 @@ def process_document(doc_id: str, pdf_path: Path, use_ocr: bool = True,
 
     except Exception as exc:
         logger.exception("[%s] ingestion failed", doc_id)
-        database.set_status(doc_id, "failed", progress="failed", error=str(exc)[:1000])
+        try:
+            database.set_status(doc_id, "failed", progress="failed", error=_user_message(exc))
+            # The record stays to report the failure; its partial data does not.
+            database.save_chapters(doc_id, [])
+            vector_store.delete_document(doc_id)
+            bm25_index.delete_index(doc_id)
+            page_store.delete_book_pages(doc_id)
+            file_store.delete(doc_id)
+        except Exception:
+            logger.exception("[%s] could not clean up the failed ingestion", doc_id)
+    finally:
+        Path(pdf_path).unlink(missing_ok=True)
 
 
 def _sample_chunks(doc_id: str, count: int) -> List[Dict[str, Any]]:
@@ -190,10 +217,16 @@ def _require_llm() -> None:
         )
 
 
-def _require_ready(doc_id: str) -> Dict[str, Any]:
+def _require_owned(doc_id: str, user_id: str) -> Dict[str, Any]:
+    """The user's own book. Someone else's gets the same 404 as one that doesn't exist."""
     document = database.get_document(doc_id)
-    if not document:
+    if not document or str(document["user_id"]) != user_id:
         raise HTTPException(404, f"Unknown document '{doc_id}'.")
+    return document
+
+
+def _require_ready(doc_id: str, user_id: str) -> Dict[str, Any]:
+    document = _require_owned(doc_id, user_id)
     if document["status"] != "ready":
         raise HTTPException(
             409,
@@ -213,7 +246,6 @@ def health() -> Dict[str, Any]:
         "embedding_model": config.EMBEDDING_MODEL,
         "gemini_key_set": bool(config.GEMINI_API_KEY),
         "groq_key_set": bool(config.GROQ_API_KEY),
-        "documents": len(database.list_documents()),
     }
 
 
@@ -223,20 +255,22 @@ async def upload(
     file: UploadFile = File(...),
     use_ocr: bool = Query(True, description="set false to skip OCR on image-only pages"),
     wait: bool = Query(False, description="ingest inline and return counts instead of polling"),
+    user_id: str = Depends(current_user),
 ) -> UploadResponse:
     """Accept a PDF and ingest it.
 
     By default ingestion runs in the background and the client polls
     /api/documents/{doc_id}: embedding a few hundred pages takes minutes, past
     any browser timeout. `?wait=true` runs the same pipeline inline and returns
-    the page/chunk/chapter counts plus a few chunks in the response, which is
-    what the curl smoke test and small books want.
+    the page/chunk/chapter counts plus a few chunks in the response, which suits
+    small books and testing.
     """
     if not (file.filename or "").lower().endswith(".pdf"):
         raise HTTPException(400, "Only PDF files are accepted.")
+    check_limit(user_id, "upload", config.UPLOADS_PER_HOUR)
 
     doc_id = uuid.uuid4().hex[:12]
-    destination = config.UPLOAD_DIR / f"{doc_id}.pdf"
+    destination = config.TEMP_UPLOAD_DIR / f"{doc_id}.pdf"
 
     size = 0
     limit = config.MAX_UPLOAD_MB * 1024 * 1024
@@ -254,7 +288,7 @@ async def upload(
     finally:
         await file.close()
 
-    database.create_document(doc_id, file.filename, str(destination))
+    database.create_document(doc_id, file.filename, "", user_id=user_id)
 
     if wait:
         # The pipeline is blocking CPU work, so it cannot run on the event loop.
@@ -283,21 +317,20 @@ async def upload(
 
 
 @app.get("/api/documents")
-def list_documents() -> List[Dict[str, Any]]:
-    return database.list_documents()
+def list_documents(user_id: str = Depends(current_user)) -> List[Dict[str, Any]]:
+    return database.list_documents(user_id)
 
 
 @app.get("/api/documents/{doc_id}")
-def get_document(doc_id: str, samples: int = Query(0, ge=0, le=20)) -> Dict[str, Any]:
+def get_document(doc_id: str, samples: int = Query(0, ge=0, le=20),
+                 user_id: str = Depends(current_user)) -> Dict[str, Any]:
     """Document record, its chapters, and optionally a few chunks to eyeball.
 
     `?samples=3` returns the first chunks in reading order so the ingestion can
     be spot-checked by hand — that page numbers line up, that a chapter was
     attached, that the Gujarati came through clean.
     """
-    document = database.get_document(doc_id)
-    if not document:
-        raise HTTPException(404, f"Unknown document '{doc_id}'.")
+    document = _require_owned(doc_id, user_id)
 
     chapters = database.get_chapters(doc_id)
     document["chapters"] = chapters
@@ -308,44 +341,36 @@ def get_document(doc_id: str, samples: int = Query(0, ge=0, le=20)) -> Dict[str,
     return document
 
 
-# The singular spelling is what the Step 1 contract and the curl examples use.
-@app.get("/api/document/{doc_id}", include_in_schema=False)
-def get_document_alias(doc_id: str, samples: int = Query(0, ge=0, le=20)) -> Dict[str, Any]:
-    return get_document(doc_id, samples=samples)
-
-
 @app.delete("/api/documents/{doc_id}")
-def delete_document(doc_id: str) -> Dict[str, str]:
-    document = database.get_document(doc_id)
-    if not document:
-        raise HTTPException(404, f"Unknown document '{doc_id}'.")
+def delete_document(doc_id: str, user_id: str = Depends(current_user)) -> Dict[str, str]:
+    _require_owned(doc_id, user_id)
 
+    # The PDF goes first: if this fails the book still exists and can be deleted again.
+    file_store.delete(doc_id)
     vector_store.delete_document(doc_id)
     bm25_index.delete_index(doc_id)
     page_store.delete_book_pages(doc_id)
-    if document.get("file_path"):
-        Path(document["file_path"]).unlink(missing_ok=True)
     database.delete_document(doc_id)
     return {"doc_id": doc_id, "status": "deleted"}
 
 
 @app.post("/api/ask")
-def ask(request: AskRequest) -> Dict[str, Any]:
+def ask(request: AskRequest, user_id: str = Depends(current_user)) -> Dict[str, Any]:
     """Answer a question strictly from one uploaded book."""
-    _require_ready(request.doc_id)
+    _require_ready(request.doc_id, user_id)
     _require_llm()
+    check_limit(user_id, "ask", config.ASKS_PER_HOUR)
     try:
         result = answer_question(request.doc_id, request.question.strip())
-    except Exception as exc:
+    except Exception:
         logger.exception("QA failed")
-        raise HTTPException(500, f"Question answering failed: {exc}")
+        raise HTTPException(500, "Question answering failed. Please try again.")
 
     if result.get("llm_error"):
         # Never report "not found in the book" when the truth is that the
         # model could not be reached — that would be a refusal we did not earn.
-        raise HTTPException(
-            503, f"The language model could not be reached: {result['llm_error']}"
-        )
+        logger.error("LLM unavailable: %s", result["llm_error"])
+        raise HTTPException(503, "The language model could not be reached. Please try again later.")
     return result
 
 
@@ -354,17 +379,21 @@ def summary(
     doc_id: str,
     force: bool = Query(False, description="ignore the cached summary and rebuild"),
     language: Optional[str] = Query(None, pattern="^(gujarati|english)$"),
+    user_id: str = Depends(current_user),
 ) -> Dict[str, Any]:
     """Full-book summary, built hierarchically from the chapter summaries."""
-    _require_ready(doc_id)
+    _require_ready(doc_id, user_id)
     _require_llm()
+    # Only building one spends quota; reading a cached summary is free.
+    if force or not database.get_summary(doc_id, "full"):
+        check_limit(user_id, "summary", config.SUMMARIES_PER_HOUR)
     try:
         return summarizer.summarize_book(doc_id, language=language, force=force)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
-    except Exception as exc:
+    except Exception:
         logger.exception("Summarisation failed")
-        raise HTTPException(500, f"Summarisation failed: {exc}")
+        raise HTTPException(500, "The summary could not be built. Please try again.")
 
 
 @app.get("/api/summary/{doc_id}/chapters")
@@ -372,18 +401,21 @@ def chapter_summaries(
     doc_id: str,
     force: bool = Query(False, description="ignore cached summaries and rebuild"),
     language: Optional[str] = Query(None, pattern="^(gujarati|english)$"),
+    user_id: str = Depends(current_user),
 ) -> Dict[str, Any]:
     """One summary per detected chapter."""
-    _require_ready(doc_id)
+    _require_ready(doc_id, user_id)
     _require_llm()
+    if force or not database.get_chapter_summaries(doc_id):
+        check_limit(user_id, "summary", config.SUMMARIES_PER_HOUR)
     try:
         chapters = summarizer.summarize_chapters(doc_id, language=language, force=force)
         return {"doc_id": doc_id, "chapter_count": len(chapters), "chapters": chapters}
     except ValueError as exc:
         raise HTTPException(400, str(exc))
-    except Exception as exc:
+    except Exception:
         logger.exception("Chapter summarisation failed")
-        raise HTTPException(500, f"Chapter summarisation failed: {exc}")
+        raise HTTPException(500, "The summaries could not be built. Please try again.")
 
 
 @app.get("/api/evaluate/{doc_id}")
@@ -391,19 +423,23 @@ def evaluate(
     doc_id: str,
     limit: Optional[int] = Query(None, ge=1, description="run only the first N test cases"),
     cached: bool = Query(False, description="return the last stored report instead of re-running"),
+    user_id: str = Depends(current_user),
 ) -> Dict[str, Any]:
     """Run the RAGAS evaluation suite against this document's test set.
 
     This is slow — every case is a full pipeline run plus judge calls — so the
-    last report is stored and can be re-read with ?cached=true.
+    last report is stored and can be re-read with ?cached=true. Live runs are off
+    unless SS_ALLOW_LIVE_EVALUATION is set, since one uses up a day's LLM quota.
     """
-    _require_ready(doc_id)
+    _require_ready(doc_id, user_id)
 
     if cached:
         report = database.get_latest_evaluation(doc_id)
         if not report:
             raise HTTPException(404, "No stored evaluation for this document yet.")
         return report["metrics"]
+    if not config.ALLOW_LIVE_EVALUATION:
+        raise HTTPException(403, "Live evaluation is turned off on this server.")
 
     # Imported lazily: RAGAS pulls in a large dependency tree that should not
     # slow down or break server startup for users who never evaluate.
@@ -414,6 +450,6 @@ def evaluate(
         return evaluate_document(doc_id, limit=limit)
     except (FileNotFoundError, ValueError) as exc:
         raise HTTPException(400, str(exc))
-    except Exception as exc:
+    except Exception:
         logger.exception("Evaluation failed")
-        raise HTTPException(500, f"Evaluation failed: {exc}")
+        raise HTTPException(500, "Evaluation failed. Please try again.")

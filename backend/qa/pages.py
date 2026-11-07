@@ -4,8 +4,7 @@ A chunk records only its first and last page. When it spans two pages, that
 range does not say which page a given sentence is on, so it cannot prove a
 citation. The page text can: ingestion stores every page exactly as it was
 indexed (after OCR and running-header removal), so it matches what the chunks
-were cut from. Books indexed before that store existed fall back to rebuilding
-the text from the uploaded PDF, OCR-ing scanned pages on demand.
+were cut from, and answering a question never needs the PDF or OCR.
 
 `page_text_source` is the single lookup used by the grounding check and the
 answer prompt; tests replace it with fixtures.
@@ -13,12 +12,11 @@ answer prompt; tests replace it with fixtures.
 from __future__ import annotations
 
 import functools
-import json
 import logging
 import re
 from typing import Callable, Dict, Optional
 
-import config
+from db import database
 
 logger = logging.getLogger(__name__)
 
@@ -30,64 +28,32 @@ MARKER = "⟪પાનું {page}⟫"
 _MARKER_PREFIX_CHARS = 24
 
 
-def _pdf_path(doc_id: str):
-    return config.UPLOAD_DIR / f"{doc_id}.pdf"
-
-
-def _stored_path(doc_id: str):
-    return config.PAGES_DIR / f"{doc_id}.json"
-
-
 def save_book_pages(doc_id: str, pages) -> None:
     """Store the indexed text of every page (processing.pdf_extractor.Page)."""
-    payload = {str(p.page_number): p.text for p in pages}
-    _stored_path(doc_id).write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+    database.save_pages(doc_id, pages)
     _book_pages.cache_clear()
 
 
 def delete_book_pages(doc_id: str) -> None:
-    _stored_path(doc_id).unlink(missing_ok=True)
+    database.delete_pages(doc_id)
     _book_pages.cache_clear()
 
 
 @functools.lru_cache(maxsize=4)
 def _book_pages(doc_id: str) -> Dict[int, str]:
-    stored = _stored_path(doc_id)
-    if stored.exists():
-        return {int(k): v for k, v in json.loads(stored.read_text(encoding="utf-8")).items()}
-
-    from processing import pdf_extractor
-
-    pages = pdf_extractor.extract_pages(_pdf_path(doc_id), use_ocr=False)
-    pages = pdf_extractor.strip_running_headers(pages)
-    return {p.page_number: p.text for p in pages}
+    return database.get_pages(doc_id)
 
 
-_ocr_cache: Dict[tuple, str] = {}
-
-
-def pdf_page_text(doc_id: str, page: int) -> Optional[str]:
+def stored_page_text(doc_id: str, page: int) -> Optional[str]:
     """Text of one page of the uploaded book, or None if it cannot be read."""
     try:
-        text = _book_pages(doc_id).get(page)
-    except Exception as exc:  # missing upload, unreadable PDF
+        return _book_pages(doc_id).get(page) or None
+    except Exception as exc:  # database unreachable
         logger.warning("Page text unavailable for %s: %s", doc_id, exc)
         return None
-    if text or _stored_path(doc_id).exists():
-        return text or None  # stored text is final: an empty page stays empty
-    # A scanned page has no text layer; OCR just this page, once.
-    key = (doc_id, page)
-    if key not in _ocr_cache:
-        from processing import pdf_extractor
-        try:
-            _ocr_cache[key] = pdf_extractor.clean_text(pdf_extractor.ocr_page(_pdf_path(doc_id), page))
-        except Exception as exc:
-            logger.warning("OCR of %s page %d failed: %s", doc_id, page, exc)
-            _ocr_cache[key] = ""
-    return _ocr_cache[key] or None
 
 
-page_text_source: Callable[[str, int], Optional[str]] = pdf_page_text
+page_text_source: Callable[[str, int], Optional[str]] = stored_page_text
 
 
 def page_text(doc_id: str, page: int) -> Optional[str]:

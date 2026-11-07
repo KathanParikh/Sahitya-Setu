@@ -209,17 +209,6 @@ class Prompts(unittest.TestCase):
         self.assertIn("Never define a term with itself", ANSWER_SYSTEM)
 
 
-class RunQA(unittest.TestCase):
-    def test_brief_shape(self):
-        llm = ScriptedLLM(answers=["“નટોની ક્રિયા કે કાર્ય એટલે નટોનો આંગિક અભિનય” (પાનું 201)"])
-        with mock.patch.object(graph, "hybrid_search", side_effect=book):
-            r = graph.run_qa("doc", "વાચિક?", book_title="Test", app=graph.build_graph(llm))
-        self.assertEqual(set(r), {"answer", "found", "sources", "question_used", "retries"})
-        self.assertEqual(r["sources"][0]["page_no"], 201)
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class CitationCorrection(unittest.TestCase):
@@ -243,3 +232,7 @@ class GradePrompt(unittest.TestCase):
         from qa.prompt_builder import build_grade_prompt
         long = chunk("ક" * 1000 + " રાણાએ સોનાની એક એક વીંટી અપાવી.", 30)
         self.assertIn("વીંટી", build_grade_prompt("શું અપાવ્યું?", [long]))
+
+
+if __name__ == "__main__":
+    unittest.main()

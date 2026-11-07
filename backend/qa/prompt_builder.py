@@ -9,7 +9,6 @@ from __future__ import annotations
 import re
 from typing import List, Sequence
 
-import config
 from qa import pages
 
 _GUJARATI = re.compile(r"[઀-૿]")
@@ -221,7 +220,6 @@ def build_grade_prompt(question: str, chunks: Sequence) -> str:
     )
 
 
-build_grading_prompt = build_grade_prompt  # name used in the project brief
 
 
 # ------------------------------------------------------------ rewriting ----

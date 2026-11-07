@@ -7,6 +7,7 @@ import httpx
 import groq
 from google.genai import errors as gerr
 
+import config
 from qa import llm_client
 from qa.llm_client import BaseLLM, FallbackLLM, GroqLLM, LLMError
 
@@ -116,14 +117,10 @@ class RetryPolicy(unittest.TestCase):
     def test_groq_sdk_retries_disabled(self):
         self.assertEqual(GroqLLM()._get_client().max_retries, 0)
 
-    def test_call_llm_uses_configured_provider(self):
-        llm_client.reset_llm()
-        with mock.patch.object(llm_client.config, "LLM_PROVIDER", "groq"), \
-             mock.patch.object(llm_client.config, "LLM_AUTO_FALLBACK", False), \
-             mock.patch.object(GroqLLM, "_complete", return_value="hi"):
-            self.assertEqual(llm_client.call_llm("p"), "hi")
-            self.assertIsInstance(llm_client.get_llm(), GroqLLM)
-        llm_client.reset_llm()
+    def test_requests_have_a_timeout(self):
+        self.assertEqual(GroqLLM()._get_client().timeout, config.LLM_REQUEST_TIMEOUT)
+        client = llm_client.GeminiLLM()._get_client()
+        self.assertEqual(client._api_client._http_options.timeout, config.LLM_REQUEST_TIMEOUT * 1000)
 
 
 if __name__ == "__main__":

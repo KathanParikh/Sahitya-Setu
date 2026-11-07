@@ -13,8 +13,8 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass, field, asdict
-from typing import Callable, Dict, List, Optional, Sequence
+from dataclasses import dataclass, asdict
+from typing import Dict, List, Optional, Sequence
 
 import config
 from processing.pdf_extractor import Page
@@ -48,18 +48,6 @@ class Chunk:
 
     def to_dict(self) -> dict:
         return asdict(self)
-
-    def metadata(self) -> dict:
-        """The subset stored alongside the vector in ChromaDB."""
-        return {
-            "doc_id": self.doc_id,
-            "chunk_index": self.chunk_index,
-            "page_start": self.page_start,
-            "page_end": self.page_end,
-            "chapter_index": self.chapter_index,
-            "chapter_title": self.chapter_title,
-            "token_count": self.token_count,
-        }
 
 
 # ---------------------------------------------------------- token counting --
@@ -441,13 +429,6 @@ def _numbered_chapters(pages: Sequence[Page]) -> List[Chapter]:
                     len(chapters), len(pages))
         return []
     return chapters
-
-
-def chapter_for_page(chapters: Sequence[Chapter], page_number: int) -> Optional[Chapter]:
-    for ch in chapters:
-        if ch.start_page <= page_number <= ch.end_page:
-            return ch
-    return None
 
 
 # ------------------------------------------------------- sentence splitting --

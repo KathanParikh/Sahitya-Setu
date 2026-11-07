@@ -5,6 +5,11 @@ python-multipart>=0.0.9        # required by FastAPI for file uploads
 pydantic>=2.7
 python-dotenv>=1.0
 
+# --- database --------------------------------------------------------------
+psycopg[binary]>=3.2           # Supabase Postgres
+psycopg-pool>=3.2
+httpx>=0.27                    # Supabase Storage
+
 # --- pdf extraction --------------------------------------------------------
 PyMuPDF>=1.24                  # digital PDFs (imported as `fitz`)
 pdf2image>=1.17                # scanned PDFs; needs the poppler binaries
@@ -12,15 +17,9 @@ pytesseract>=0.3.10            # needs the tesseract binary + guj language pack
 Pillow>=10.3
 
 # --- indexing and retrieval ------------------------------------------------
-# Upper bounds matter: torch 2.5+ dropped the Intel-Mac wheel, so on an
-# Intel Mac pip resolves to torch 2.2.2, which transformers 5.x and
-# numpy 2.x refuse to load against. The pins below are the newest
-# compatible with that torch build.
-numpy<2                        # torch 2.2 is numpy-1 ABI
-sentence-transformers>=3.0,<4
-transformers>=4.40,<5
+sentence-transformers>=6,<7
+transformers>=5,<6
 rank-bm25>=0.2.2
-chromadb>=0.5
 
 # --- qa pipeline -----------------------------------------------------------
 langgraph>=0.2,<1.0            # pinned: see the version note below

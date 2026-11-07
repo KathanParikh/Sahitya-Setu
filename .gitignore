@@ -4,7 +4,6 @@ __pycache__/
 *.py[cod]
 backend/.env
 backend/data/
-*.pkl
 .DS_Store
 node_modules/
 # test books are copyrighted (state board textbook), keep them local

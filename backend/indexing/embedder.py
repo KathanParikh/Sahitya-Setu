@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Iterable, List, Optional, Sequence
+from typing import List, Sequence
 
 import config
 
@@ -40,8 +40,7 @@ def _encode(texts: Sequence[str], prefix: str, show_progress: bool = False) -> L
     vectors = model.encode(
         prefixed,
         batch_size=config.EMBEDDING_BATCH_SIZE,
-        # Cosine similarity on unit vectors is just a dot product, which is
-        # what Chroma's default index computes.
+        # Unit vectors, so cosine distance in pgvector compares direction only.
         normalize_embeddings=True,
         show_progress_bar=show_progress,
         convert_to_numpy=True,
@@ -57,10 +56,6 @@ def embed_passages(texts: Sequence[str], show_progress: bool = False) -> List[Li
 def embed_query(text: str) -> List[float]:
     """Embed a single user question for retrieval."""
     return _encode([text], config.E5_QUERY_PREFIX)[0]
-
-
-def embed_queries(texts: Sequence[str]) -> List[List[float]]:
-    return _encode(texts, config.E5_QUERY_PREFIX)
 
 
 def warm_up() -> None:

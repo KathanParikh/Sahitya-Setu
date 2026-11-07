@@ -1,7 +1,4 @@
 """Gujarati BM25 tokenization and the in-memory upgrade of v1 indexes."""
-import os
-import pickle
-import tempfile
 import unittest
 from unittest import mock
 
@@ -25,32 +22,35 @@ class Tokenizer(unittest.TestCase):
         self.assertNotIn("અને", tokenize("રામ અને સીતા"))
 
 
-class Upgrade(unittest.TestCase):
-    def test_v1_pickle_retokenized_from_store_without_rewriting(self):
-        with tempfile.TemporaryDirectory() as d:
-            path = os.path.join(d, "doc.pkl")
-            with open(path, "wb") as fh:  # what the old tokenizer stored
-                pickle.dump({"version": 1, "chunk_ids": ["a", "b", "c"],
-                             "corpus_tokens": [["વ", "ચ", "ક"], ["ન", "ટક"], ["ગ"]]}, fh)
-            with open(path, "rb") as fh:
-                before = fh.read()
-            rows = {"a": {"text": "વાચિક અભિનય"}, "b": {"text": "નાટક રંગમંચ"},
-                    "c": {"text": "દિગ્દર્શક"}}
-            with mock.patch("indexing.vector_store.get_by_ids", return_value=rows):
-                idx = BM25Index.load(path, "doc")
-            self.assertEqual(idx.corpus_tokens, [["વાચિક", "અભિનય"], ["નાટક", "રંગમંચ"], ["દિગ્દર્શક"]])
-            self.assertEqual(idx.search("વાચિક")[0].chunk_id, "a")
-            with open(path, "rb") as fh:
-                self.assertEqual(fh.read(), before)
+class Index(unittest.TestCase):
+    ROWS = [{"chunk_id": "a", "text": "વાચિક અભિનય"}, {"chunk_id": "b", "text": "નાટક રંગમંચ"},
+            {"chunk_id": "c", "text": "દિગ્દર્શક"}]
 
-    def test_new_saves_are_current_version(self):
-        with tempfile.TemporaryDirectory() as d:
-            path = BM25Index(["a"], [["x"]]).save(os.path.join(d, "doc.pkl"))
-            with open(path, "rb") as fh:
-                self.assertEqual(pickle.load(fh)["version"], bm25_index.TOKENIZER_VERSION)
-            with mock.patch("indexing.vector_store.get_by_ids") as store:
-                BM25Index.load(path, "doc")
-                store.assert_not_called()
+    def setUp(self):
+        self.addCleanup(bm25_index.delete_index, "doc")
+
+    def test_built_from_stored_chunk_text(self):
+        with mock.patch("indexing.vector_store.get_all_chunks", return_value=self.ROWS):
+            index = bm25_index.get_index("doc")
+        self.assertEqual(index.search("વાચિક")[0].chunk_id, "a")
+
+    def test_second_question_does_not_read_the_chunks_again(self):
+        with mock.patch("indexing.vector_store.get_all_chunks", return_value=self.ROWS) as store:
+            first = bm25_index.get_index("doc")
+            self.assertIs(bm25_index.get_index("doc"), first)
+        store.assert_called_once()
+
+    def test_book_without_chunks_has_no_index(self):
+        with mock.patch("indexing.vector_store.get_all_chunks", return_value=[]):
+            self.assertIsNone(bm25_index.get_index("doc"))
+
+    def test_database_failure_means_no_index_not_a_crash(self):
+        with mock.patch("indexing.vector_store.get_all_chunks", side_effect=RuntimeError("down")):
+            self.assertIsNone(bm25_index.get_index("doc"))
+
+    def test_chunk_with_only_stopwords_does_not_break_the_index(self):
+        index = BM25Index.build(["a", "b", "c"], ["અને", "વાચિક", "નાટક"])
+        self.assertEqual(index.search("વાચિક")[0].chunk_id, "b")
 
 
 if __name__ == "__main__":

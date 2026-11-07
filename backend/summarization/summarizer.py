@@ -8,7 +8,7 @@ again into the whole-book summary. The book summary therefore never sees raw
 text — only text the model has already read once, which keeps it consistent
 with the per-chapter output shown next to it.
 
-Results are cached in SQLite: summarising a full book costs dozens of LLM
+Results are cached in the database: summarising a full book costs dozens of LLM
 calls and must not be repeated on every page load.
 """
 from __future__ import annotations
@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional, Sequence
 import config
 from db import database
 from indexing import vector_store
-from qa.llm_client import BaseLLM, LLMError, get_llm
+from qa.llm_client import BaseLLM, get_llm
 
 logger = logging.getLogger(__name__)
 

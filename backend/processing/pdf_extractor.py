@@ -12,7 +12,7 @@ import re
 import unicodedata
 from dataclasses import dataclass, asdict
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 import config
 
@@ -206,8 +206,8 @@ def extract_pages(pdf_path: str | Path, use_ocr: bool = True) -> List[Page]:
                         logger.warning("OCR failed on page %d: %s", index + 1, exc)
                         source = "empty" if not text else "digital"
                 else:
-                    # With use_ocr=False the caller OCRs empty pages itself
-                    # (qa/pages.py), so only a failed OCR setup is worth a warning.
+                    # With use_ocr=False skipping OCR was the request, so only a
+                    # failed OCR setup is worth a warning.
                     if legacy and use_ocr:
                         logger.warning("Page %d uses a legacy non-Unicode font and OCR "
                                        "is unavailable; skipping it.", index + 1)

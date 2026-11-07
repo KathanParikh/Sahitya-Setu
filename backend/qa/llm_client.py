@@ -14,7 +14,7 @@ import random
 import re
 import time
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional
+from typing import Any, Optional
 
 import config
 
@@ -201,7 +201,11 @@ class GeminiLLM(BaseLLM):
     def _get_client(self):
         if self._client is None:
             from google import genai
-            self._client = genai.Client(api_key=self.api_key)
+            from google.genai import types
+            self._client = genai.Client(
+                api_key=self.api_key,
+                http_options=types.HttpOptions(timeout=int(config.LLM_REQUEST_TIMEOUT * 1000)),
+            )
         return self._client
 
     def _complete(self, prompt: str, system: Optional[str], temperature: float) -> str:
@@ -235,7 +239,8 @@ class GroqLLM(BaseLLM):
             from groq import Groq
             # max_retries=0: BaseLLM.generate owns retries; the SDK's own
             # would multiply every attempt into three requests.
-            self._client = Groq(api_key=self.api_key, max_retries=0)
+            self._client = Groq(api_key=self.api_key, max_retries=0,
+                                timeout=config.LLM_REQUEST_TIMEOUT)
         return self._client
 
     def _complete(self, prompt: str, system: Optional[str], temperature: float) -> str:
@@ -257,8 +262,8 @@ class GroqLLM(BaseLLM):
 class FallbackLLM(BaseLLM):
     """Try the primary provider; on failure, try the backup once.
 
-    Free tiers hit quota mid-demo. This keeps a live demo alive rather than
-    surfacing a 429 to the evaluator.
+    Free tiers hit their quota without warning. This keeps answers coming rather
+    than surfacing a 429 to the user.
     """
 
     def __init__(self, primary: BaseLLM, backup: BaseLLM):
@@ -320,14 +325,3 @@ def get_llm() -> BaseLLM:
     if _singleton is None:
         _singleton = build_llm()
     return _singleton
-
-
-def call_llm(prompt: str) -> str:
-    """One-shot completion on whichever provider config.LLM_PROVIDER selects."""
-    return get_llm().generate(prompt)
-
-
-def reset_llm() -> None:
-    """Drop the cached client (used by tests and after a config change)."""
-    global _singleton
-    _singleton = None

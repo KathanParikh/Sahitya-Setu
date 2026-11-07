@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 import operator
 import time
-from typing import Annotated, Any, Dict, List, Optional, Sequence, TypedDict
+from typing import Annotated, Any, Dict, List, Optional, TypedDict
 
 import config
 from indexing.hybrid_search import RetrievedChunk, hybrid_search
@@ -341,11 +341,6 @@ def get_graph():
     return _compiled
 
 
-def reset_graph() -> None:
-    global _compiled
-    _compiled = None
-
-
 # ------------------------------------------------------------- entry -------
 def answer_question(doc_id: str, question: str, app=None,
                     book_title: str = "") -> Dict[str, Any]:
@@ -384,23 +379,4 @@ def answer_question(doc_id: str, question: str, app=None,
         "retrieved": [c.to_dict() for c in (final.get("documents") or [])],
         "trace": final.get("trace", []),
         "elapsed_seconds": round(time.time() - started, 2),
-    }
-
-
-def run_qa(doc_id: str, question: str,
-           book_title: str = "Uploaded Document", app=None) -> Dict[str, Any]:
-    """Compact result shape from the project brief, for shell testing."""
-    result = answer_question(doc_id, question, app=app, book_title=book_title)
-    if result["llm_error"]:
-        raise LLMError(result["llm_error"])
-    return {
-        "answer": result["answer"],
-        "found": result["found"],
-        "sources": [
-            {"page_no": c["page_start"], "chapter": c["chapter_title"],
-             "text": c["snippet"][:200]}
-            for c in result["citations"]
-        ],
-        "question_used": result["queries_tried"][-1] if result["queries_tried"] else question,
-        "retries": result["rewrites_used"],
     }
