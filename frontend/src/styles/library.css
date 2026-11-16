@@ -1,0 +1,538 @@
+/* =============================================================== library == */
+/* One centred workspace: heading, upload and the list share a single column. */
+.container.library {
+  max-width: calc(66rem + 2 * var(--gutter));
+  padding-top: var(--space-8);
+  padding-bottom: var(--space-9);
+}
+
+/* The intro and, on wide screens, the words-to-meaning composition beside it,
+   centred against the heading and description. */
+.library__head {
+  display: grid;
+  align-items: center;
+}
+
+/* Scoped to the head, so the general .words sizing does not override it. */
+.library__head .library__words {
+  display: none;
+}
+
+@media (min-width: 1100px) {
+  .library__head {
+    grid-template-columns: minmax(0, 1fr) clamp(21rem, 28vw, 25rem);
+    column-gap: var(--space-7);
+  }
+  .library__head .library__words {
+    display: block;
+    width: 100%;
+    margin-top: var(--space-2);
+  }
+}
+
+.library__intro {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 44rem;
+}
+
+.library__lead {
+  color: var(--ink-2);
+  font-size: var(--text-read);
+  line-height: 1.6;
+}
+
+.library__main {
+  display: grid;
+  gap: var(--space-7);
+  margin-top: var(--space-6);
+  min-width: 0;
+}
+
+@media (max-width: 767px) {
+  .container.library {
+    padding-top: var(--space-6);
+  }
+}
+
+/* ================================================================ upload == */
+/* The one place a book goes in: a pale-teal ground that is also the drop target. */
+.upload {
+  padding: var(--space-5);
+  border: 1.5px dashed var(--cite-edge);
+  border-radius: var(--radius-sheet);
+  background: var(--tint);
+  transition: background var(--duration) var(--ease-out), border-color var(--duration) var(--ease-out);
+}
+
+.upload--over {
+  border-style: solid;
+  border-color: var(--accent);
+  background: var(--tint-strong);
+}
+
+.upload--active {
+  border: 1px solid var(--rule);
+  background: var(--surface);
+  box-shadow: var(--shadow-2);
+}
+
+.upload__idle {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4) var(--space-6);
+}
+
+.upload__text {
+  display: grid;
+  gap: var(--space-1);
+  flex: 1 1 18rem;
+}
+
+.upload__title {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-heading);
+}
+
+.upload__hint {
+  color: var(--ink-2);
+  font-size: var(--text-md);
+}
+
+.upload__idle .button {
+  min-height: 2.875rem;
+  padding-inline: var(--space-5);
+  font-size: var(--text-base);
+}
+
+@media (max-width: 559px) {
+  .upload__idle .button {
+    width: 100%;
+  }
+}
+
+/* The chosen file, its reading option, its progress. */
+.upload-panel {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.upload-panel__title {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-heading);
+}
+
+.upload-panel__title:focus {
+  outline: none;
+}
+
+.upload-panel__file {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-control);
+  background: var(--tint);
+}
+
+.upload-panel__icon {
+  flex: none;
+  color: var(--accent-text);
+}
+
+.upload-panel__name {
+  overflow: hidden;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.upload-panel__size {
+  flex: none;
+  margin-left: auto;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.upload-panel__status {
+  color: var(--ink-2);
+  font-variant-numeric: tabular-nums;
+}
+
+.upload-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.choice {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.choice__legend {
+  padding: 0;
+  margin-bottom: var(--space-2);
+  font-weight: 600;
+}
+
+.choice__option {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-control);
+  box-shadow: inset 0 0 0 1px var(--rule);
+  cursor: pointer;
+  transition: box-shadow var(--duration) var(--ease-out), background var(--duration) var(--ease-out);
+}
+
+.choice__option:hover {
+  background: var(--tint);
+}
+
+.choice__option:has(input:checked) {
+  background: var(--tint);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+.choice__option input {
+  flex: none;
+  margin-top: 0.3rem;
+  accent-color: var(--accent);
+}
+
+.choice__label {
+  display: block;
+  font-weight: 550;
+}
+
+.choice__hint {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+
+/* ================================================================= books == */
+.books__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+  margin-bottom: var(--space-3);
+}
+
+.books__heading {
+  display: grid;
+  gap: 2px;
+}
+
+.books__title {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-heading);
+}
+
+.books__count {
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+}
+
+.books__tools {
+  display: flex;
+  flex: 0 1 26rem;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+@media (max-width: 559px) {
+  .books__tools {
+    flex: 1 1 100%;
+    flex-wrap: wrap;
+  }
+  .books__tools .search {
+    flex-basis: 100%;
+  }
+}
+
+.search {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.search__icon {
+  position: absolute;
+  top: 50%;
+  left: var(--space-3);
+  transform: translateY(-50%);
+  color: var(--ink-3);
+  pointer-events: none;
+}
+
+.search__input {
+  width: 100%;
+  min-width: 0;
+  height: var(--control-height);
+  padding: 0 var(--space-3) 0 2.25rem;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--rule-strong);
+}
+
+.search__input:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px var(--accent), 0 0 0 3px var(--tint-strong);
+}
+
+/* A document list: one white sheet, rows split by hairlines. */
+.book-table {
+  overflow: hidden;
+  border-radius: var(--radius-sheet);
+  background: var(--surface);
+  box-shadow: var(--shadow-1), inset 0 0 0 1px var(--rule);
+}
+
+.book-table__head,
+.book-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 8.5rem 4.5rem;
+  align-items: center;
+  column-gap: var(--space-4);
+  padding-inline: var(--space-5) var(--space-3);
+}
+
+.book-table__head {
+  height: 2.5rem;
+  border-bottom: 1px solid var(--rule);
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: 550;
+}
+
+.book-row {
+  position: relative;
+  min-height: 4.25rem;
+  padding-block: var(--space-3);
+  transition: background var(--duration) var(--ease-out);
+}
+
+.book-row + .book-row {
+  border-top: 1px solid var(--rule);
+}
+
+.book-row--ready:hover {
+  background: var(--tint);
+}
+
+.book-row--ready:active {
+  background: var(--tint-strong);
+}
+
+.book-row--ready:hover .chevron {
+  color: var(--accent-text);
+  transform: translateX(2px);
+}
+
+.book-row__main {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.book-row__title {
+  font-family: var(--font-book);
+  font-size: var(--text-lg);
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.book-row__title:lang(gu) {
+  line-height: 1.5;
+}
+
+.book-row__title a {
+  color: var(--ink);
+}
+
+.book-row__title a:hover {
+  text-decoration: none;
+}
+
+/* The title link covers the whole row. */
+.book-row__title a::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+
+.book-row__title a:focus-visible {
+  box-shadow: none;
+}
+
+.book-row__title a:focus-visible::after {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.book-row__author {
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.book-row__date {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.book-row__end {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+.chevron-space {
+  width: 18px;
+}
+
+.book-row__delete {
+  position: relative;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-3);
+  opacity: 0;
+  transition: opacity var(--duration) var(--ease-out), background var(--duration) var(--ease-out);
+}
+
+.book-row:hover .book-row__delete,
+.book-row:focus-within .book-row__delete,
+.book-row--failed .book-row__delete {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .book-row__delete {
+    opacity: 1;
+  }
+}
+
+.book-row__delete:hover:not(:disabled) {
+  background: var(--danger-wash);
+  color: var(--danger);
+}
+
+.book-row:hover .book-row__delete:disabled {
+  opacity: 0.35;
+}
+
+.book-row--placeholder {
+  grid-template-columns: 1fr;
+}
+
+/* Phones: the date moves under the title. */
+@media (max-width: 639px) {
+  .book-table__head {
+    display: none;
+  }
+  .book-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    padding-inline: var(--space-4) var(--space-2);
+  }
+  .book-row__date {
+    grid-column: 1;
+    grid-row: 2;
+    font-size: var(--text-xs);
+    color: var(--ink-3);
+  }
+  .book-row__end {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+  }
+}
+
+/* What is happening to a book that cannot be opened yet. */
+.book-status {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--ink-2);
+}
+
+.book-status .spinner {
+  margin-top: 0.3em;
+  color: var(--accent-text);
+}
+
+.book-status--busy {
+  display: grid;
+  gap: var(--space-2);
+  max-width: 22rem;
+}
+
+.book-status__line {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.book-status__label {
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
+.book-status--failed .book-status__label {
+  color: var(--danger);
+}
+
+.book-status__detail {
+  overflow-wrap: anywhere;
+}
+
+/* The empty library: the source thread beside the message, saying what a book becomes. */
+.state.empty-library {
+  grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--space-6);
+  padding: var(--space-6);
+}
+
+.empty-library__text {
+  display: grid;
+  gap: var(--space-2);
+  max-width: 30rem;
+}
+
+@media (max-width: 559px) {
+  .state.empty-library {
+    grid-template-columns: 1fr;
+    row-gap: var(--space-4);
+    padding: var(--space-5);
+  }
+  .empty-library__picture {
+    max-width: 14rem;
+  }
+}

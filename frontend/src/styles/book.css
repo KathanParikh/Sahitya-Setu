@@ -1,0 +1,248 @@
+/* ================================================================== book == */
+.book-state {
+  padding-top: var(--space-5);
+}
+
+.book-head__placeholder {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-4) 0 var(--space-6);
+}
+
+.crumb {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: -0.35rem;
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-1);
+  border-radius: 6px;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.crumb:hover {
+  background: var(--surface-sunk);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+/* The title page: name first, particulars beneath. */
+.book-head {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  padding-top: var(--space-5);
+  padding-bottom: var(--space-5);
+}
+
+.book-head__title {
+  margin-top: var(--space-2);
+  max-width: 48rem;
+  overflow-wrap: anywhere;
+}
+
+.book-head__facts {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: var(--space-5);
+  row-gap: var(--space-1);
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+.book-head__author {
+  color: var(--ink-2);
+  font-weight: 550;
+}
+
+/* ================================================================== tabs == */
+.tabs {
+  position: sticky;
+  top: var(--topbar-height);
+  z-index: 10;
+  background: color-mix(in srgb, var(--canvas) 92%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 1px 0 var(--rule);
+}
+
+.tabs__inner {
+  display: flex;
+  gap: var(--space-6);
+}
+
+.tabs__link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  height: 3rem;
+  color: var(--ink-3);
+  font-weight: 550;
+  transition: color var(--duration) var(--ease-out);
+}
+
+.tabs__link:hover {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.tabs__link.active {
+  color: var(--ink);
+}
+
+.tabs__link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px 2px 0 0;
+  background: var(--accent);
+  transform: scaleX(0);
+  transition: transform 200ms var(--ease-out);
+}
+
+.tabs__link.active::after {
+  transform: scaleX(1);
+}
+
+.book__body {
+  padding-top: var(--space-6);
+  padding-bottom: var(--space-9);
+}
+
+/* Shared section headings inside a book. */
+.section-title {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-heading);
+}
+
+.section-lead {
+  margin-top: var(--space-1);
+  max-width: 40rem;
+  color: var(--ink-2);
+}
+
+/* ============================================================ processing == */
+.processing {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 36rem;
+}
+
+.processing__step {
+  color: var(--ink-2);
+}
+
+.processing__hint {
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+}
+
+/* ============================================================== contents == */
+.contents {
+  display: grid;
+  gap: var(--space-7);
+  align-items: start;
+}
+
+
+.contents__heading {
+  margin-bottom: var(--space-3);
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-heading);
+}
+
+.contents__note {
+  max-width: var(--reading-max);
+  margin-top: var(--space-4);
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+}
+
+/* One column for a short contents; two, side by side, for a long one. */
+.toc-columns {
+  display: grid;
+  gap: var(--space-4);
+  max-width: 46rem;
+}
+
+.toc-columns--two {
+  max-width: none;
+}
+
+@media (min-width: 900px) {
+  .toc-columns--two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-5);
+    align-items: start;
+  }
+}
+
+/* A printed contents page, on one sheet: number, title, dotted leader, pages. */
+.toc {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: var(--radius-sheet);
+  background: var(--surface);
+  box-shadow: var(--shadow-1), inset 0 0 0 1px var(--rule);
+}
+
+.toc__item + .toc__item {
+  border-top: 1px solid var(--rule);
+}
+
+.toc__link {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  color: var(--ink);
+  transition: background var(--duration) var(--ease-out);
+}
+
+.toc__link:hover {
+  background: var(--tint);
+  text-decoration: none;
+}
+
+.toc__link:active {
+  background: var(--tint-strong);
+}
+
+.toc__number {
+  flex: none;
+  min-width: 1.75rem;
+  color: var(--ink-3);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.toc__title {
+  font-family: var(--font-book);
+  font-size: var(--text-lg);
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.toc__title:lang(gu) {
+  line-height: 1.6;
+}
+
+.toc__leader {
+  flex: 1 1 1rem;
+  min-width: 1rem;
+  border-bottom: 1.5px dotted var(--rule-strong);
+  transform: translateY(-0.3em);
+}
+
+.toc__pages {
+  flex: none;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}

@@ -1,0 +1,934 @@
+@import "./tokens.css";
+@import "./shell.css";
+@import "./library.css";
+@import "./book.css";
+@import "./ask.css";
+@import "./summary.css";
+@import "./auth.css";
+
+/* ================================================================= reset == */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  scroll-padding-top: calc(var(--topbar-height) + var(--space-6));
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+  line-height: var(--leading-ui);
+  font-kerning: normal;
+  font-optical-sizing: auto;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4, p, ul, ol, dl, dd, figure, blockquote {
+  margin: 0;
+}
+
+h1, h2, h3, h4 {
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+ul, ol {
+  padding: 0;
+  list-style: none;
+}
+
+button, input, textarea, select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+a {
+  color: var(--accent-text);
+  text-decoration: none;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: 4px;
+}
+
+::selection {
+  background: var(--mark-strong);
+}
+
+/* Gujarati matras and conjuncts need room. Zero specificity, so a
+   component's own :lang(gu) rule always wins. */
+:where(:lang(gu)) {
+  line-height: var(--leading-gu);
+}
+
+:where(h1:lang(gu), h2:lang(gu), h3:lang(gu)) {
+  line-height: 1.4;
+}
+
+code {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 0.9em;
+  padding: 0.1em 0.35em;
+  background: var(--surface-sunk);
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================= utilities == */
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip-link {
+  position: fixed;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: 100;
+  padding: var(--space-2) var(--space-4);
+  background: var(--accent);
+  color: var(--on-accent);
+  border-radius: var(--radius-control);
+  transform: translateY(-200%);
+}
+
+.skip-link:focus {
+  transform: none;
+}
+
+.container {
+  width: 100%;
+  max-width: var(--content-max);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.page {
+  padding-block: var(--space-8);
+}
+
+.page-center {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+}
+
+.stack > * + * {
+  margin-top: var(--space-4);
+}
+
+.muted {
+  color: var(--ink-3);
+}
+
+/* Every view arrives the same way: a short fade, so moving between the
+   library, a book and its tabs reads as one place. */
+.view {
+  animation: view-in 220ms var(--ease-out);
+}
+
+@keyframes view-in {
+  from { opacity: 0; transform: translateY(4px); }
+}
+
+/* Page headings: the serif voice. A Gujarati book name runs larger in
+   Noto Serif Gujarati, so it is set a step smaller. */
+.page-title {
+  font-family: var(--font-display);
+  font-size: var(--text-display);
+  font-weight: var(--weight-heading);
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+}
+
+.page-title:lang(gu) {
+  font-size: calc(var(--text-display) * 0.86);
+  font-weight: var(--weight-title);
+  line-height: 1.4;
+  letter-spacing: 0;
+}
+
+/* The book's own text. */
+.book-text {
+  font-family: var(--font-book);
+  font-size: 1.125rem;
+  line-height: var(--leading-read);
+}
+
+.book-text:lang(gu) {
+  line-height: var(--leading-gu-read);
+}
+
+/* A short heading the model wrote inside an answer or summary. */
+.text-heading {
+  font-weight: 600;
+  color: var(--ink);
+  margin-top: var(--space-5);
+}
+
+.placeholder-line {
+  display: block;
+  height: 0.7rem;
+  border-radius: var(--radius-pill);
+  background: linear-gradient(90deg, var(--surface-sunk) 0%, var(--tint) 50%, var(--surface-sunk) 100%) 0 0 / 200% 100%;
+  animation: shimmer 1.4s linear infinite;
+}
+
+.placeholder-line--short {
+  width: 45%;
+  margin-top: var(--space-2);
+}
+
+@keyframes shimmer {
+  to { background-position: -200% 0; }
+}
+
+/* A row's "this opens" mark. */
+.chevron {
+  flex: none;
+  color: var(--ink-3);
+  transition: transform var(--duration) var(--ease-out), color var(--duration) var(--ease-out);
+}
+
+/* ================================================================ button == */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: var(--control-height);
+  padding: 0 var(--space-4);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--rule-strong);
+  font-size: var(--text-md);
+  font-weight: 550;
+  line-height: 1;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background var(--duration) var(--ease-out), box-shadow var(--duration) var(--ease-out),
+    transform 80ms var(--ease-out);
+}
+
+.button svg {
+  flex: none;
+}
+
+.button:hover:not(:disabled) {
+  background: var(--tint);
+  text-decoration: none;
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.button:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--rule-strong), var(--focus-ring);
+  border-radius: var(--radius-control);
+}
+
+.button:disabled {
+  opacity: 0.5;
+}
+
+.button--primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: var(--shadow-button);
+}
+
+.button--primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  color: var(--on-accent);
+}
+
+.button--primary:active:not(:disabled) {
+  background: var(--accent-press);
+}
+
+.button--primary:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.button--quiet {
+  background: transparent;
+  box-shadow: none;
+  color: var(--ink-2);
+  padding-inline: var(--space-3);
+}
+
+.button--quiet:hover:not(:disabled) {
+  background: var(--surface-sunk);
+  color: var(--ink);
+}
+
+.button--quiet:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.button--danger {
+  background: var(--danger);
+  color: var(--on-danger);
+}
+
+.button--danger:hover:not(:disabled) {
+  background: var(--danger-hover);
+  color: var(--on-danger);
+}
+
+.button--block {
+  width: 100%;
+}
+
+.button--small {
+  min-height: var(--control-height-sm);
+  padding-inline: var(--space-3);
+  font-size: var(--text-sm);
+}
+
+.text-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font-size: inherit;
+  font-weight: 500;
+}
+
+.text-button:hover:not(:disabled) {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.text-button:disabled {
+  color: var(--ink-3);
+}
+
+/* ============================================================= segmented == */
+.segmented {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  background: var(--surface-sunk);
+  border-radius: var(--radius-control);
+}
+
+.segmented__option {
+  min-height: calc(var(--control-height-sm) - 2px);
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.segmented__option:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.segmented__option[aria-checked="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-1), inset 0 0 0 1px var(--rule);
+}
+
+/* ================================================================= field == */
+.field {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.field__label {
+  font-size: var(--text-sm);
+  font-weight: 550;
+  color: var(--ink-2);
+}
+
+.field__control {
+  position: relative;
+}
+
+.field__input {
+  width: 100%;
+  height: 2.75rem;
+  padding: 0 var(--space-3);
+  border: 0;
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--rule-strong);
+  transition: box-shadow var(--duration) var(--ease-out);
+}
+
+.field__input:hover:not(:disabled) {
+  box-shadow: inset 0 0 0 1px var(--ink-3);
+}
+
+.field__input:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px var(--accent), 0 0 0 3px var(--tint-strong);
+}
+
+.field__input[aria-invalid="true"] {
+  box-shadow: inset 0 0 0 1.5px var(--danger);
+}
+
+.field__input--with-action {
+  padding-right: 4.5rem;
+}
+
+.field__action {
+  position: absolute;
+  top: 50%;
+  right: var(--space-3);
+  transform: translateY(-50%);
+  font-size: var(--text-sm);
+}
+
+.field__hint,
+.field__error {
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+}
+
+.field__error {
+  color: var(--danger);
+  font-weight: 500;
+}
+
+/* ================================================================ notice == */
+.notice {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sheet);
+  background: var(--tint);
+  box-shadow: inset 0 0 0 1px var(--tint-strong);
+  color: var(--ink);
+}
+
+.notice__icon {
+  flex: none;
+  margin-top: 3px;
+  color: var(--accent-text);
+}
+
+.notice--error {
+  background: var(--danger-wash);
+  box-shadow: inset 0 0 0 1px var(--danger-edge);
+}
+
+.notice--error .notice__icon {
+  color: var(--danger);
+}
+
+.notice__title {
+  font-weight: 600;
+}
+
+.notice__body {
+  margin-top: var(--space-1);
+  color: var(--ink-2);
+  font-size: var(--text-md);
+}
+
+.notice__body > * + * {
+  margin-top: var(--space-2);
+}
+
+.notice__action {
+  margin-top: var(--space-2);
+}
+
+.notice > div > .notice__action {
+  margin-left: calc(-1 * var(--space-3));
+}
+
+.notice__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* ======================================================= spinner, progress == */
+.spinner {
+  flex: none;
+  width: 1em;
+  height: 1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  opacity: 0.8;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.spinner-row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.progress {
+  position: relative;
+  height: 4px;
+  overflow: hidden;
+  border-radius: var(--radius-pill);
+  background: var(--tint-strong);
+}
+
+.progress__bar {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 200ms linear;
+}
+
+.progress--indeterminate .progress__bar {
+  width: 35%;
+  animation: slide 1.4s var(--ease-out) infinite;
+}
+
+@keyframes slide {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(300%); }
+}
+
+.elapsed {
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+
+/* =============================================================== dialog == */
+.dialog {
+  width: min(28rem, calc(100vw - 2 * var(--space-4)));
+  padding: var(--space-5);
+  border: 0;
+  border-radius: var(--radius-sheet);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow-3);
+}
+
+.dialog::backdrop {
+  background: var(--backdrop);
+}
+
+.dialog[open] {
+  animation: rise 180ms var(--ease-out);
+}
+
+@keyframes rise {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+}
+
+.dialog__title {
+  font-size: var(--text-lg);
+}
+
+.dialog__body {
+  margin-top: var(--space-3);
+}
+
+.dialog__body > * + * {
+  margin-top: var(--space-2);
+}
+
+.dialog__strong {
+  font-family: var(--font-book);
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  margin-top: var(--space-5);
+}
+
+/* ========================================================== empty state == */
+.empty-state {
+  max-width: 34rem;
+  padding: var(--space-7) 0;
+}
+
+.empty-state__title {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-heading);
+}
+
+.empty-state__body {
+  margin-top: var(--space-3);
+  color: var(--ink-2);
+}
+
+.empty-state__body > * + * {
+  margin-top: var(--space-3);
+}
+
+.empty-state__action {
+  margin-top: var(--space-5);
+}
+
+.page-loading {
+  padding: var(--space-8) 0;
+}
+
+/* ============================================================== wordmark == */
+/* The name alone, in the serif. */
+.wordmark {
+  display: inline-flex;
+  align-items: baseline;
+  color: var(--ink);
+  font-family: var(--font-display);
+  font-size: 1.375rem;
+  font-weight: var(--weight-title);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+/* In the top bar the link fills the bar's height: an easy tap target. */
+.topbar a.wordmark {
+  align-self: stretch;
+  align-items: center;
+  padding-inline: var(--space-1);
+}
+
+a.wordmark:hover {
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.wordmark--large {
+  font-size: 1.75rem;
+}
+
+/* ================================================================ states == */
+/* Empty and "nothing here" states: a heading that says what is so, a line
+   that says what to do, and the action. Inline ones sit inside a section. */
+.state {
+  display: grid;
+  justify-items: start;
+  gap: var(--space-2);
+  max-width: 34rem;
+  padding: var(--space-6) 0;
+}
+
+.state--inline {
+  max-width: none;
+  padding: var(--space-5) var(--space-5);
+  border-radius: var(--radius-sheet);
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--rule);
+}
+
+.state__title {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-heading);
+  line-height: 1.25;
+}
+
+.state--inline .state__title {
+  font-family: var(--font-ui);
+  font-size: var(--text-base);
+}
+
+.state__body {
+  color: var(--ink-2);
+}
+
+.state__action {
+  margin-top: var(--space-2);
+}
+
+.state__note {
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--ink-3);
+}
+
+/* ================================================================== help == */
+.help {
+  padding-top: var(--space-7);
+  padding-bottom: var(--space-9);
+}
+
+.help__intro {
+  display: grid;
+  gap: var(--space-3);
+  max-width: 44rem;
+}
+
+.help__lead {
+  color: var(--ink-2);
+  font-size: var(--text-read);
+}
+
+.help__layout {
+  display: grid;
+  gap: var(--space-6);
+  margin-top: var(--space-6);
+}
+
+@media (min-width: 1024px) {
+  .help__layout {
+    grid-template-columns: 14rem minmax(0, 44rem);
+    gap: var(--space-8);
+  }
+  .help__toc {
+    position: sticky;
+    top: calc(var(--topbar-height) + var(--space-6));
+    align-self: start;
+  }
+}
+
+.help__toc ol {
+  display: grid;
+  gap: 1px;
+  counter-reset: none;
+}
+
+.help__toc a {
+  display: block;
+  padding: var(--space-1) var(--space-3);
+  margin-left: calc(-1 * var(--space-3));
+  border-radius: var(--radius-control);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.help__toc a:hover {
+  background: var(--tint);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.help__section {
+  padding: var(--space-5) 0;
+  scroll-margin-top: calc(var(--topbar-height) + var(--space-5));
+}
+
+.help__section + .help__section {
+  border-top: 1px solid var(--rule);
+}
+
+.help__section:first-child {
+  padding-top: 0;
+}
+
+.help__title {
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-heading);
+}
+
+.help__text {
+  margin-top: var(--space-3);
+  color: var(--ink-2);
+  line-height: 1.65;
+}
+
+.help__text > * + * {
+  margin-top: var(--space-3);
+}
+
+.help__text strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.help__list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.help__back {
+  margin-top: var(--space-5);
+  font-weight: 550;
+}
+
+/* =============================================================== visuals == */
+/* ---- The reading journey: book page, chapters, question, answer, summary ---- */
+.journey {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.rj-page { fill: var(--surface); stroke: var(--rule-strong); stroke-width: 1; }
+.rj-chapter { fill: var(--ink-2); font-family: var(--font-book); font-size: 13px; font-weight: 600; }
+.rj-folio { fill: var(--ink-3); font-family: var(--font-book); font-size: 12px; }
+.rj-text { fill: var(--rule-strong); }
+/* The book's own words on the page, in the book serif. */
+.rj-ptext { fill: var(--ink-2); font-family: var(--font-book); font-size: 10.5px; }
+.rj-band { fill: var(--tint-strong); }
+.rj-num { fill: var(--accent-text); font-family: var(--font-book); font-size: 12px; font-weight: 600; }
+.rj-path { fill: none; stroke: var(--accent); stroke-width: 1.25; stroke-dasharray: 1; stroke-linecap: round; opacity: 0.55; animation: rj-draw 0.9s var(--ease-out) both; }
+.rj-bubble { fill: var(--surface); stroke: var(--rule-strong); stroke-width: 1; }
+.rj-question { fill: var(--ink); font-family: var(--font-ui); font-size: 14px; font-weight: 500; }
+.rj-card { fill: var(--surface); stroke: var(--rule); stroke-width: 1; filter: drop-shadow(0 10px 18px rgb(38 54 50 / 0.1)); }
+.rj-label { fill: var(--accent-text); font-family: var(--font-ui); font-size: 12px; font-weight: 600; }
+.rj-answer { fill: var(--ink); font-family: var(--font-ui); font-size: 13px; }
+.rj-line { fill: var(--rule-strong); }
+.rj-cite { fill: var(--cite-bg); }
+.rj-cite-text { fill: var(--cite-text); font-family: var(--font-ui); font-size: 9.5px; font-weight: 600; }
+.rj-summary { fill: var(--tint-strong); }
+.rj-summary-title { fill: var(--ink); font-family: var(--font-book); font-size: 16px; font-weight: 600; }
+.rj-stext { fill: var(--ink); font-family: var(--font-ui); font-size: 12px; }
+.rj-summary-num { fill: var(--accent-text); font-family: var(--font-book); font-size: 11px; font-weight: 600; }
+/* The passage that answers the question, outlined in teal. */
+.rj-focus { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+.rj-sline { fill: var(--cite-edge); }
+
+/* Played once, in order; the finished picture stays. */
+.rj-rise,
+.rj-fade,
+.rj-slide,
+.rj-grow,
+.rj-wipe {
+  animation-duration: 0.7s;
+  animation-timing-function: var(--ease-out);
+  animation-fill-mode: both;
+  transform-box: fill-box;
+}
+.rj-rise { animation-name: rj-rise; }
+.rj-fade { animation-name: rj-fade; }
+.rj-slide { animation-name: rj-slide; }
+.rj-grow { animation-name: rj-grow; transform-origin: left center; animation-duration: 0.5s; }
+/* Text is written in, left to right, rather than moved. */
+.rj-wipe { animation-name: rj-wipe; animation-duration: 0.9s; animation-timing-function: ease-out; }
+
+@keyframes rj-rise { from { opacity: 0; transform: translateY(8px); } }
+@keyframes rj-fade { from { opacity: 0; } }
+@keyframes rj-slide { from { opacity: 0; transform: translateX(8px); } }
+@keyframes rj-grow { from { transform: scaleX(0); } }
+@keyframes rj-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+/* Generous margins, so the finished state never clips Gujarati vowel signs above or below the line. */
+@keyframes rj-wipe { from { clip-path: inset(-60% 100% -60% -10%) fill-box; } to { clip-path: inset(-60% -10% -60% -10%) fill-box; } }
+
+/* Still: the finished picture at once (also when the reader asks for less motion). */
+.journey--still * {
+  animation: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .journey *,
+  .words * {
+    animation: none !important;
+  }
+}
+
+/* ---- Words to meaning: literature, marked, joined into understanding ---- */
+.words {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.words__text {
+  fill: var(--ink-3);
+  font-family: var(--font-book);
+  font-weight: 500;
+  opacity: 0.75;
+}
+
+.words__text--mark {
+  fill: var(--ink-2);
+  opacity: 1;
+}
+
+.words__text--end {
+  fill: var(--accent);
+  font-weight: 600;
+  opacity: 1;
+}
+
+.words__mark { fill: var(--tint-strong); }
+
+.words__path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1;
+  stroke-dasharray: 0.006 0.012;
+  stroke-linecap: round;
+  opacity: 0.5;
+}
+
+.words__end { fill: var(--accent); }
+
+.words__word {
+  animation: rj-fade 0.8s var(--ease-out) both;
+}
+
+/* Gujarati consonants in the book serif, as a faint texture. */
+.letter-field {
+  font-family: var(--font-book);
+  font-weight: 500;
+  color: var(--accent);
+  opacity: 0.08;
+  line-height: 1.25;
+  word-spacing: 0.35em;
+  pointer-events: none;
+  user-select: none;
+}

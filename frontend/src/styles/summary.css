@@ -1,0 +1,275 @@
+/* ============================================================= summaries == */
+.summaries__bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  max-width: 60rem;
+}
+
+.summaries__language {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.summaries__label {
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+}
+
+.summaries__working {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: var(--space-3);
+  row-gap: var(--space-1);
+  max-width: var(--reading-max);
+  margin-top: var(--space-6);
+  padding: var(--space-4) var(--space-5);
+  border-radius: var(--radius-sheet);
+  background: var(--tint);
+}
+
+.summaries__working .spinner {
+  color: var(--accent-text);
+}
+
+.summaries__working-title {
+  font-weight: 600;
+}
+
+.summaries__working-hint {
+  grid-column: 2;
+  font-size: var(--text-sm);
+}
+
+.summaries__cost {
+  font-size: var(--text-sm);
+  color: var(--ink-3);
+}
+
+.summaries > .notice {
+  max-width: var(--reading-max);
+  margin-top: var(--space-5);
+}
+
+.summaries__layout {
+  margin-top: var(--space-6);
+}
+
+@media (min-width: 1024px) {
+  .summaries__layout {
+    display: grid;
+    grid-template-columns: 14rem minmax(0, var(--reading-max));
+    gap: var(--space-8);
+    align-items: start;
+  }
+}
+
+/* The chapters: a strip to jump along on narrow screens, a list in the margin on wide ones. */
+.summary-rail {
+  position: sticky;
+  top: calc(var(--topbar-height) + 3rem);
+  z-index: 4;
+  margin: 0 calc(-1 * var(--gutter)) var(--space-5);
+  padding: var(--space-2) var(--gutter);
+  overflow-x: auto;
+  background: var(--canvas);
+  box-shadow: 0 1px 0 var(--rule);
+  scrollbar-width: none;
+}
+
+.summary-rail ol {
+  display: flex;
+  gap: var(--space-2);
+  width: max-content;
+}
+
+.summary-rail a {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  max-width: 16rem;
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-control);
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  transition: background var(--duration) var(--ease-out), color var(--duration) var(--ease-out);
+}
+
+.summary-rail a > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.summary-rail a:hover {
+  background: var(--tint);
+  color: var(--ink);
+  text-decoration: none;
+}
+
+.summary-rail a.is-current {
+  background: var(--tint-strong);
+  color: var(--ink);
+}
+
+.summary-rail__number {
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.summary-rail a.is-current .summary-rail__number {
+  color: var(--accent-text);
+  font-weight: 650;
+}
+
+@media (min-width: 1024px) {
+  .summary-rail {
+    top: calc(var(--topbar-height) + 3rem + var(--space-5));
+    max-height: calc(100vh - var(--topbar-height) - 3rem - var(--space-7));
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    background: none;
+    box-shadow: none;
+  }
+  .summary-rail ol {
+    flex-direction: column;
+    gap: 1px;
+    width: auto;
+  }
+  .summary-rail a {
+    display: grid;
+    grid-template-columns: 1.5rem 1fr;
+    max-width: none;
+    white-space: normal;
+  }
+  .summary-rail a > span:last-child {
+    overflow: visible;
+  }
+  /* "The whole book" has no number: give its text the full width. */
+  .summary-rail li:first-child a {
+    grid-template-columns: 1fr;
+  }
+  .summary-rail a:lang(gu),
+  .summary-rail a span:lang(gu) {
+    line-height: 1.6;
+  }
+}
+
+.summaries__reading {
+  max-width: var(--reading-max);
+  min-width: 0;
+}
+
+/* The whole book: the opening statement, on its own sheet. */
+.summary-book {
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--radius-sheet);
+  background: var(--surface);
+  box-shadow: var(--shadow-1), inset 0 0 0 1px var(--rule);
+  scroll-margin-top: calc(var(--topbar-height) + 6rem);
+}
+
+.summary-book:focus,
+.summary-chapter:focus {
+  outline: none;
+}
+
+.summary-book__title,
+.summary-chapters__title {
+  margin-bottom: var(--space-3);
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: var(--weight-heading);
+}
+
+.summary-chapters {
+  margin-top: var(--space-7);
+}
+
+.summary-chapter {
+  padding: var(--space-5) 0;
+  scroll-margin-top: calc(var(--topbar-height) + 6rem);
+}
+
+.summary-chapter + .summary-chapter {
+  border-top: 1px solid var(--rule);
+}
+
+.summary-chapter__title {
+  display: grid;
+  grid-template-columns: 2.25rem 1fr;
+  column-gap: var(--space-2);
+  align-items: baseline;
+  margin-bottom: var(--space-3);
+}
+
+.summary-chapter__number {
+  grid-row: span 2;
+  color: var(--accent-text);
+  font-size: var(--text-lg);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A chapter title is the book's own words. */
+.summary-chapter__name {
+  font-family: var(--font-book);
+  font-size: var(--text-xl);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.summary-chapter__name:lang(gu) {
+  line-height: 1.45;
+}
+
+.summary-chapter__pages {
+  grid-column: 2;
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  color: var(--ink-3);
+}
+
+.summary-chapter > .summary-text,
+.summary-chapter > p {
+  padding-left: calc(2.25rem + var(--space-2));
+}
+
+@media (max-width: 559px) {
+  .summary-book {
+    padding: var(--space-4);
+  }
+  .summary-chapter > .summary-text,
+  .summary-chapter > p {
+    padding-left: 0;
+  }
+}
+
+/* Summaries are written by the app: sans, at reading size. */
+.summary-text {
+  font-size: var(--text-read);
+  line-height: var(--leading-read);
+}
+
+.summary-text:lang(gu) {
+  line-height: var(--leading-gu-read);
+}
+
+.summary-text > * + * {
+  margin-top: var(--space-3);
+}
+
+.summary-text__list {
+  padding-left: 1.25rem;
+  list-style: disc;
+}
+
+.summary-text__list li::marker {
+  color: var(--ink-3);
+}

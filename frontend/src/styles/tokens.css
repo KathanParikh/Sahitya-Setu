@@ -1,0 +1,138 @@
+/*
+ * Design tokens. Light only.
+ *
+ * Colour: warm white, charcoal and muted teal. Token names say what a colour
+ * is for, not what it looks like, so a theme change lives here alone.
+ *   background  --canvas        warm white, the page
+ *   surface     --surface       white sheets: lists, the question box, passages
+ *   secondary   --tint          quiet fills and row hover
+ *               --tint-strong   pale teal: selection, the current place, the upload ground
+ *   primary     --accent        muted teal: actions, focus
+ *               --accent-text   a deeper teal for links and small accent text
+ *   marks       --note, --mark  the reader's marks and "not in the book"
+ *   borders     --rule          hairlines; --rule-strong for inputs
+ *   text        --ink           deep charcoal, headings and body
+ *               --ink-2, --ink-3  secondary text and metadata
+ *
+ * Type: two voices, each a Latin face paired with a Gujarati one. The
+ * browser takes each character from the first face that has it, so mixed
+ * Gujarati and English lines need nothing special.
+ *   serif  Newsreader + Noto Serif Gujarati: page headings, book titles,
+ *          chapter titles and the book's own passages.
+ *   sans   Instrument Sans + Noto Sans Gujarati: the interface, questions,
+ *          answers, summaries and metadata.
+ *
+ * Every text colour meets 4.5:1 on --canvas, --surface, --tint and --tint-strong.
+ */
+
+:root {
+  color-scheme: light;
+
+  /* Surfaces */
+  --canvas: #fafaf7;
+  --surface: #ffffff;
+  --surface-sunk: #f0f3f1;
+  --tint: #f2f6f4;
+  --tint-strong: #e7f0ed;
+  --rule: #e2e8e5;
+  --rule-strong: #c8d3cf;
+
+  /* Ink: charcoal with a little green in it, never pure black */
+  --ink: #263632;
+  --ink-2: #52635d;
+  --ink-3: #5c6c66;
+
+  /* Muted teal */
+  --accent: #39796f;
+  --accent-hover: #2f675e;
+  --accent-press: #275850;
+  --accent-text: #2f6a61;
+  --on-accent: #ffffff;
+
+  /* Citations and cited passages */
+  --cite-bg: #e2eeea;
+  --cite-text: #24584f;
+  --cite-active: var(--accent);
+  --cite-edge: #a9cbc3;
+
+  /* The reader's marks: quoted words in passages, "not in the book" answers */
+  --note: #eff4f2;
+  --mark-strong: #d5e7e1;
+  --mark: rgb(57 121 111 / 0.2);
+
+  /* Errors and destructive actions only. */
+  --danger: #b3261e;
+  --danger-hover: #93201a;
+  --danger-wash: #fbeeed;
+  --danger-edge: #f2d3d0;
+  --on-danger: #ffffff;
+
+  --focus-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent);
+  --backdrop: rgb(38 54 50 / 0.3);
+  --shadow-button: 0 1px 2px rgb(38 54 50 / 0.14);
+  --shadow-1: 0 1px 2px rgb(38 54 50 / 0.05);
+  --shadow-2: 0 1px 2px rgb(38 54 50 / 0.05), 0 8px 24px -12px rgb(38 54 50 / 0.16);
+  --shadow-3: 0 2px 6px rgb(38 54 50 / 0.08), 0 24px 48px -16px rgb(38 54 50 / 0.26);
+
+  /* Type */
+  --font-sans: "Instrument Sans", "Noto Sans Gujarati", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-serif: "Newsreader", "Noto Serif Gujarati", Georgia, "Times New Roman", serif;
+  /* Roles. Headings and the book's own words share the serif; everything the app says is sans. */
+  --font-ui: var(--font-sans);
+  --font-display: var(--font-serif);
+  --font-book: var(--font-serif);
+
+  --text-xs: 0.8125rem;   /* 13: metadata */
+  --text-sm: 0.875rem;    /* 14 */
+  --text-md: 0.9375rem;   /* 15 */
+  --text-base: 1rem;      /* 16: interface body */
+  --text-read: 1.0625rem; /* 17: answers and summaries */
+  --text-lg: 1.1875rem;   /* 19: book titles in rows */
+  --text-xl: 1.5rem;      /* 24: section headings */
+  --text-2xl: 1.875rem;   /* 30 */
+  --text-display: clamp(2.125rem, 1.6rem + 2vw, 2.75rem); /* 34–44: page headings */
+
+  /* Weights: the serif needs less to carry a heading; the sans stays light. */
+  --weight-heading: 500;
+  --weight-title: 600;
+  --weight-strong: 600;
+
+  --leading-tight: 1.2;
+  --leading-ui: 1.5;
+  --leading-read: 1.7;
+  /* Gujarati: matras above and below need more room than Latin. */
+  --leading-gu: 1.8;
+  --leading-gu-read: 1.9;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-7: 3rem;
+  --space-8: 4rem;
+  --space-9: 6rem;
+
+  --radius-control: 8px;
+  --radius-sheet: 12px;
+  --radius-pill: 999px;
+
+  --control-height: 2.5rem;
+  --control-height-sm: 2rem;
+  --topbar-height: 3.5rem;
+  --content-max: 72rem;
+  --reading-max: 42rem;
+  --gutter: var(--space-4);
+
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --duration: 150ms;
+}
+
+@media (min-width: 768px) {
+  :root { --gutter: var(--space-6); }
+}
+
+@media (min-width: 1280px) {
+  :root { --gutter: var(--space-7); }
+}
