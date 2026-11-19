@@ -65,6 +65,17 @@ class Store(unittest.TestCase):
         database.save_summary(self.doc_id, "full", "બીજો")
         self.assertEqual(database.get_summary(self.doc_id, "full"), "બીજો")
 
+    def test_each_language_keeps_its_own_summary(self):
+        database.save_summary(self.doc_id, "full", "ગુજરાતી સાર", language="gujarati")
+        database.save_summary(self.doc_id, "full", "English summary", language="english")
+        self.assertEqual(database.get_summary(self.doc_id, "full", language="gujarati"), "ગુજરાતી સાર")
+        self.assertEqual(database.get_summary(self.doc_id, "full", language="english"), "English summary")
+
+        database.save_chapters(self.doc_id, [SimpleNamespace(index=0, title="પ્રકરણ", start_page=1, end_page=2)])
+        database.save_summary(self.doc_id, "chapter", "સાર", chapter_index=0, language="gujarati")
+        self.assertEqual(database.get_chapter_summaries(self.doc_id, "english"), [])
+        self.assertEqual(len(database.get_chapter_summaries(self.doc_id, "gujarati")), 1)
+
     def test_chapter_summaries_carry_the_chapter_title(self):
         database.save_chapters(self.doc_id, [SimpleNamespace(index=0, title="પ્રકરણ", start_page=1, end_page=2)])
         database.save_summary(self.doc_id, "chapter", "સાર", chapter_index=0)

@@ -384,8 +384,9 @@ def summary(
     """Full-book summary, built hierarchically from the chapter summaries."""
     _require_ready(doc_id, user_id)
     _require_llm()
+    language = language or config.SUMMARY_LANGUAGE
     # Only building one spends quota; reading a cached summary is free.
-    if force or not database.get_summary(doc_id, "full"):
+    if force or not database.get_summary(doc_id, "full", language=language):
         check_limit(user_id, "summary", config.SUMMARIES_PER_HOUR)
     try:
         return summarizer.summarize_book(doc_id, language=language, force=force)
@@ -406,7 +407,8 @@ def chapter_summaries(
     """One summary per detected chapter."""
     _require_ready(doc_id, user_id)
     _require_llm()
-    if force or not database.get_chapter_summaries(doc_id):
+    language = language or config.SUMMARY_LANGUAGE
+    if force or not database.get_chapter_summaries(doc_id, language):
         check_limit(user_id, "summary", config.SUMMARIES_PER_HOUR)
     try:
         chapters = summarizer.summarize_chapters(doc_id, language=language, force=force)

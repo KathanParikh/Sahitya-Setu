@@ -37,9 +37,12 @@ create table if not exists summaries (
     doc_id        text not null references documents (doc_id) on delete cascade,
     kind          text not null,  -- 'full' | 'chapter'
     chapter_index integer not null default -1,
+    language      text not null default 'gujarati',  -- 'gujarati' | 'english'
     content       text not null,
     created_at    timestamptz not null default now(),
-    unique (doc_id, kind, chapter_index)
+    -- One summary per language: an English reader's summary must not replace
+    -- the Gujarati one, or every switch rebuilds the whole book.
+    unique (doc_id, kind, chapter_index, language)
 );
 
 create table if not exists evaluations (
@@ -92,3 +95,20 @@ alter table summaries   enable row level security;
 alter table evaluations enable row level security;
 alter table chunks      enable row level security;
 alter table pages       enable row level security;
+
+-- Migration for databases created before summaries had a language. Safe to
+-- run again. Existing rows are labelled by their script: more Gujarati than
+-- Latin letters means Gujarati.
+alter table summaries add column if not exists language text not null default 'gujarati';
+update summaries set language = 'english'
+ where length(regexp_replace(content, '[^A-Za-z]', '', 'g'))
+     > length(regexp_replace(content, '[^઀-૿]', '', 'g'));
+alter table summaries drop constraint if exists summaries_doc_id_kind_chapter_index_key;
+do $$
+begin
+  if not exists (select 1 from pg_constraint
+                 where conname = 'summaries_doc_id_kind_chapter_index_language_key') then
+    alter table summaries add constraint summaries_doc_id_kind_chapter_index_language_key
+      unique (doc_id, kind, chapter_index, language);
+  end if;
+end $$;

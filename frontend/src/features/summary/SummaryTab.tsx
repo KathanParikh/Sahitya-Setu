@@ -94,10 +94,8 @@ export function SummaryTab() {
       return fetchSummaries(book.doc_id, language, true);
     },
     onSuccess: (data) => {
+      // Each language is saved separately, so the other language is untouched.
       queryClient.setQueryData(keys.summary(book.doc_id, language), data);
-      // The server keeps one summary per book: the other language now shows this one.
-      const other = language === "gujarati" ? "english" : "gujarati";
-      queryClient.removeQueries({ queryKey: keys.summary(book.doc_id, other) });
     },
   });
 

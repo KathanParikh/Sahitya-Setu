@@ -232,12 +232,12 @@ export const en = {
   "summary.rebuild": "Rewrite summaries",
   "summary.rebuildTitle": "Rewrite the summaries in {language}?",
   "summary.rebuildBody":
-    "The saved summaries for this book are replaced. The server keeps one set per book, so this also replaces them in the other language.",
+    "The saved summaries for this book in this language are replaced. Summaries in the other language are kept.",
   "summary.rebuildConfirm": "Rewrite",
-  "summary.mismatchEnglishTitle": "This summary was saved in Gujarati",
-  "summary.mismatchGujaratiTitle": "This summary was saved in English",
+  "summary.mismatchEnglishTitle": "This summary came back in Gujarati",
+  "summary.mismatchGujaratiTitle": "This summary came back in English",
   "summary.mismatchBody":
-    "The server keeps one saved summary per book, whichever language it was first written in. Use “Rewrite summaries” to write it in the language you chose; this replaces the saved one.",
+    "The model wrote it in the other language. Use “Rewrite summaries” to write it again in the language you chose.",
 
   "notFound.title": "Page not found",
   "notFound.body": "This address does not match any page.",

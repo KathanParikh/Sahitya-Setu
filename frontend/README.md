@@ -142,11 +142,10 @@ The UI works around them rather than replacing them with mock data.
   route that returns it. A citation can show the passage snippet from
   `/api/ask` (`citations[].snippet`, first 300 characters), but not the full
   page with the supporting passage highlighted.
-- **Summary cache ignores language.** `/api/summary/...?language=` only affects
-  a summary being built. Once one is cached, it is returned for both Gujarati
-  and English requests. The UI detects the script of the returned text and,
-  when it does not match the chosen language, says so and offers "Rewrite
-  summaries" (`force=true`), which replaces the saved summary for both.
+- **Summaries are built per language.** Gujarati and English summaries are
+  saved separately; the first request in a language builds that language's
+  set, which takes several LLM calls. If the model answers in the wrong
+  language, the UI says so and offers "Rewrite summaries" (`force=true`).
 - **No question history on the server.** Asked questions and answers are kept
   in the browser only (localStorage, per user and book, last 30), so they are
   not shared between devices.

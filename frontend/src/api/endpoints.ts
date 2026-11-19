@@ -45,10 +45,7 @@ export const api = {
       signal,
     }),
 
-  /**
-   * Known backend limitation: the summary cache does not record language, so a
-   * cached summary is returned whatever `language` is asked for.
-   */
+  /** Summaries are saved per language; asking for a new language builds one. */
   bookSummary: (docId: string, options: { language?: ContentLanguage; force?: boolean } = {}) =>
     request<BookSummary>(`/api/summary/${enc(docId)}`, {
       query: { language: options.language, force: options.force || undefined },

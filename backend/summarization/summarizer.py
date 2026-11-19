@@ -138,7 +138,7 @@ def summarize_chapters(
         return _summarize_sections(doc_id, rows, language, force, llm)
 
     cached = {s["chapter_index"]: s["content"]
-              for s in database.get_chapter_summaries(doc_id)} if not force else {}
+              for s in database.get_chapter_summaries(doc_id, language)} if not force else {}
 
     results: List[Dict[str, Any]] = []
     for chapter in chapters:
@@ -154,7 +154,8 @@ def summarize_chapters(
 
         summary = _summarise_rows(chapter_rows, f"chapter '{chapter['title']}'", language, llm)
         if summary:
-            database.save_summary(doc_id, "chapter", summary, chapter_index=index)
+            database.save_summary(doc_id, "chapter", summary, chapter_index=index,
+                                  language=language)
         results.append({**chapter, "summary": summary, "cached": False})
         _throttle()
 
@@ -165,7 +166,7 @@ def _summarize_sections(doc_id: str, rows: Sequence[dict], language: str,
                         force: bool, llm: BaseLLM) -> List[Dict[str, Any]]:
     """Fallback for unstructured books: summarise in fixed-size sections."""
     cached = {s["chapter_index"]: s["content"]
-              for s in database.get_chapter_summaries(doc_id)} if not force else {}
+              for s in database.get_chapter_summaries(doc_id, language)} if not force else {}
     batches = _batch_by_tokens(rows, config.SUMMARY_MAP_BATCH_TOKENS * 2)
 
     results: List[Dict[str, Any]] = []
@@ -183,7 +184,8 @@ def _summarize_sections(doc_id: str, rows: Sequence[dict], language: str,
             continue
         summary = _summarise_rows(batch, entry["title"], language, llm)
         if summary:
-            database.save_summary(doc_id, "chapter", summary, chapter_index=i)
+            database.save_summary(doc_id, "chapter", summary, chapter_index=i,
+                                  language=language)
         results.append({**entry, "summary": summary, "cached": False})
         _throttle()
     return results
@@ -200,7 +202,7 @@ def summarize_book(
     llm = llm or get_llm()
 
     if not force:
-        cached = database.get_summary(doc_id, "full")
+        cached = database.get_summary(doc_id, "full", language=language)
         if cached:
             return {"doc_id": doc_id, "summary": cached, "cached": True}
 
@@ -218,7 +220,7 @@ def summarize_book(
     else:
         summary = llm.generate(_book_prompt(parts, title, language), system=SUMMARY_SYSTEM)
 
-    database.save_summary(doc_id, "full", summary)
+    database.save_summary(doc_id, "full", summary, language=language)
     return {
         "doc_id": doc_id,
         "summary": summary,

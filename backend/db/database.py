@@ -160,36 +160,39 @@ def get_chapters(doc_id: str) -> List[Dict[str, Any]]:
 
 
 # ------------------------------------------------------------ summaries ----
-def save_summary(doc_id: str, kind: str, content: str, chapter_index: int = -1) -> None:
+def save_summary(doc_id: str, kind: str, content: str, chapter_index: int = -1,
+                 language: str = "gujarati") -> None:
     with connect() as conn:
         conn.execute(
-            """INSERT INTO summaries (doc_id, kind, chapter_index, content)
-               VALUES (%s, %s, %s, %s)
-               ON CONFLICT (doc_id, kind, chapter_index)
+            """INSERT INTO summaries (doc_id, kind, chapter_index, language, content)
+               VALUES (%s, %s, %s, %s, %s)
+               ON CONFLICT (doc_id, kind, chapter_index, language)
                DO UPDATE SET content = excluded.content, created_at = now()""",
-            (doc_id, kind, chapter_index, content),
+            (doc_id, kind, chapter_index, language, content),
         )
 
 
-def get_summary(doc_id: str, kind: str, chapter_index: int = -1) -> Optional[str]:
+def get_summary(doc_id: str, kind: str, chapter_index: int = -1,
+                language: str = "gujarati") -> Optional[str]:
     with connect() as conn:
         row = conn.execute(
-            "SELECT content FROM summaries WHERE doc_id = %s AND kind = %s AND chapter_index = %s",
-            (doc_id, kind, chapter_index),
+            """SELECT content FROM summaries
+               WHERE doc_id = %s AND kind = %s AND chapter_index = %s AND language = %s""",
+            (doc_id, kind, chapter_index, language),
         ).fetchone()
     return row["content"] if row else None
 
 
-def get_chapter_summaries(doc_id: str) -> List[Dict[str, Any]]:
+def get_chapter_summaries(doc_id: str, language: str = "gujarati") -> List[Dict[str, Any]]:
     with connect() as conn:
         return conn.execute(
             """SELECT s.chapter_index, s.content, c.title, c.start_page, c.end_page
                FROM summaries s
                LEFT JOIN chapters c
                  ON c.doc_id = s.doc_id AND c.chapter_index = s.chapter_index
-               WHERE s.doc_id = %s AND s.kind = 'chapter'
+               WHERE s.doc_id = %s AND s.kind = 'chapter' AND s.language = %s
                ORDER BY s.chapter_index""",
-            (doc_id,),
+            (doc_id, language),
         ).fetchall()
 
 
