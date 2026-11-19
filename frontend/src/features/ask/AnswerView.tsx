@@ -129,6 +129,7 @@ export function AnswerView() {
             )}
             <AnswerText
               answer={result.answer}
+              language={result.language}
               onCite={(pages) => setSelection((s) => ({ pages, token: s.token + 1 }))}
               activePages={selection.pages}
               onPreview={setPreview}

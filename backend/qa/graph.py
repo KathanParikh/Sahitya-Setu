@@ -2,11 +2,16 @@
 
 A fixed retrieve-then-answer pipeline always answers, even when retrieval
 returned nothing useful — which is exactly when a grounded system should
-refuse. This graph inserts a grading step between retrieval and generation,
-and gives the system two chances to rewrite its own query before giving up:
+refuse. This graph inserts a grading step between retrieval and generation.
+When nothing passes, it first reads further around the best passages (widen,
+once), then gets two chances to rewrite its own query before giving up:
 
+  (English question only)
+   translate ──┐
+               ▼
         retrieve ──► grade ──┬─(relevant)──────► generate ──┬─► END
-            ▲                │                              │
+            ▲          ▲     ├─(poor, first time)──► widen  │
+            │          └─────┼───────────────────────┘      │
             │                ├─(poor, retries left)─► rewrite
             └────────────────┘                              │
                              └─(poor, out of retries)─► fallback ─► END
@@ -24,7 +29,7 @@ import time
 from typing import Annotated, Any, Dict, List, Optional, TypedDict
 
 import config
-from indexing.hybrid_search import RetrievedChunk, hybrid_search
+from indexing.hybrid_search import RetrievedChunk, hybrid_search, widen_passages
 from qa import grounding, prompt_builder
 from qa.llm_client import BaseLLM, LLMError, get_llm
 
@@ -41,6 +46,7 @@ class QAState(TypedDict, total=False):
     documents: List[RetrievedChunk]
     relevant: List[RetrievedChunk]
     attempts: int               # rewrites used so far
+    widened: bool               # neighbouring chunks already tried (once per question)
     tried_queries: List[str]
     answer: str
     found: bool
@@ -56,10 +62,44 @@ def _note(node: str, **fields) -> Dict[str, Any]:
 
 
 # ------------------------------------------------------------- nodes -------
+def translate_node(state: QAState, llm: Optional[BaseLLM] = None) -> Dict[str, Any]:
+    """English question -> Gujarati search query (English questions only).
+
+    Searching the Gujarati book with English words found the right page for
+    only 6 of 10 test questions, against 10/10 for the same questions asked in
+    Gujarati. Only the search query changes: `original_question` stays English,
+    so grading and the answer still use exactly what the user asked.
+    """
+    question = state["original_question"]
+    try:
+        llm = llm or get_llm()
+        translated = llm.generate(
+            prompt_builder.build_translate_prompt(question),
+            system=prompt_builder.TRANSLATE_SYSTEM,
+            temperature=0.0,
+        ).strip().strip('"')
+    except LLMError as exc:
+        # Not fatal: the English question still gets a vector search.
+        logger.warning("Translation failed (%s); searching in English.", exc)
+        return {"trace": [_note("translate", error=str(exc)[:200],
+                                fallback="searching with the English question")]}
+
+    if prompt_builder.detect_language(translated) != "gujarati":
+        return {"trace": [_note("translate", rejected=translated[:200],
+                                fallback="searching with the English question")]}
+    logger.info("translate: %r -> %r", question, translated)
+    return {"question": translated, "trace": [_note("translate", query=translated)]}
+
+
 def retrieve_node(state: QAState) -> Dict[str, Any]:
     """Hybrid search: BM25 + vector, fused with RRF."""
     query = state["question"]
-    chunks = hybrid_search(state["doc_id"], query, top_k=config.FINAL_TOP_K)
+    # For an English question the query is Gujarati; also search the English
+    # wording, so a mistranslated question can still find its passage.
+    original = state.get("original_question") or query
+    extra = original if state.get("language") == "english" and original != query else None
+    chunks = hybrid_search(state["doc_id"], query, top_k=config.FINAL_TOP_K,
+                           extra_vector_query=extra)
     logger.info("retrieve: %d chunks for %r", len(chunks), query)
     return {
         "documents": chunks,
@@ -81,7 +121,14 @@ def grade_node(state: QAState, llm: Optional[BaseLLM] = None) -> Dict[str, Any]:
         return {"relevant": [], "trace": [_note("grade", graded=0, relevant=0,
                                                 reason="nothing retrieved")]}
 
-    prompt = prompt_builder.build_grade_prompt(state["question"], documents)
+    # Grade against what the user asked, never the rewritten query. A rewrite
+    # is only a search string and can drop the question's meaning: "આ પુસ્તકનાં
+    # મુખ્ય પાત્રો કોણ છે?" (main characters of this book) was cut down to
+    # "પુસ્તક મુખ્ય પાત્રો", and a cast list from one story (page 98) passed
+    # that keyword query, though the grader had rejected the same passage
+    # against the real question.
+    question = state.get("original_question") or state["question"]
+    prompt = prompt_builder.build_grade_prompt(question, documents)
     try:
         llm = llm or get_llm()
         payload = llm.generate_json(prompt, system=prompt_builder.GRADE_SYSTEM, temperature=0.0)
@@ -107,6 +154,29 @@ def grade_node(state: QAState, llm: Optional[BaseLLM] = None) -> Dict[str, Any]:
             "trace": [_note("grade", graded=len(documents), relevant=len(documents),
                             error=str(exc)[:200], fallback="grader unavailable")],
         }
+
+
+def widen_node(state: QAState) -> Dict[str, Any]:
+    """Grade the top passages again, joined with the chunks around them.
+
+    Runs once per question, the first time no passage passes grading and
+    before any rewrite: the right passage may already be here with its
+    answer cut off at a chunk boundary, and a rewrite would search again
+    instead of reading further.
+    """
+    documents = state.get("documents") or []
+    try:
+        wider = widen_passages(state["doc_id"], documents)
+    except Exception as exc:
+        # A failed lookup should not end the question; rewriting still can.
+        logger.warning("Widening failed (%s); continuing without it.", exc)
+        return {"widened": True, "trace": [_note("widen", error=str(exc)[:200])]}
+    return {
+        "documents": wider,
+        "widened": True,
+        "trace": [_note("widen", passages=len(wider),
+                        chunk_ids=[c.chunk_id for c in wider])],
+    }
 
 
 def rewrite_node(state: QAState, llm: Optional[BaseLLM] = None) -> Dict[str, Any]:
@@ -185,7 +255,7 @@ def generate_node(state: QAState, llm: Optional[BaseLLM] = None) -> Dict[str, An
     # regeneration with the specific problems listed; if that fails too,
     # nothing unverified is shown.
     try:
-        grounded, problems, checked = _verify(answer, chunks, llm)
+        grounded, problems, checked = _verify(answer, chunks, llm, state["original_question"])
     except LLMError as exc:
         return _verifier_down(exc, [])
     first_problems: List[str] = []
@@ -206,7 +276,7 @@ def generate_node(state: QAState, llm: Optional[BaseLLM] = None) -> Dict[str, An
                                 problems=first_problems)],
             }
         try:
-            grounded, problems, checked = _verify(answer, chunks, llm)
+            grounded, problems, checked = _verify(answer, chunks, llm, state["original_question"])
         except LLMError as exc:
             return _verifier_down(exc, first_problems)
         if problems:
@@ -230,7 +300,7 @@ def generate_node(state: QAState, llm: Optional[BaseLLM] = None) -> Dict[str, An
     }
 
 
-def _verify(answer: str, chunks, llm):
+def _verify(answer: str, chunks, llm, question: str = ""):
     """Deterministic checks first; the LLM claim check only if they pass."""
     grounded = grounding.check_answer(answer, chunks)
     if grounded.problems:
@@ -246,7 +316,7 @@ def _verify(answer: str, chunks, llm):
                 grounded = retry
     if grounded.problems:
         return grounded, list(grounded.problems), 0
-    problems, checked = grounding.verify_claims(grounded.answer, chunks, llm)
+    problems, checked = grounding.verify_claims(grounded.answer, chunks, llm, question)
     return grounded, problems, checked
 
 
@@ -291,6 +361,8 @@ def decide_after_grade(state: QAState) -> str:
     relevant = state.get("relevant") or []
     if len(relevant) >= config.MIN_RELEVANT_CHUNKS:
         return "generate"
+    if not state.get("widened") and state.get("documents"):
+        return "widen"
     if state.get("attempts", 0) < config.MAX_QUERY_REWRITES:
         return "rewrite"
     return "fallback"
@@ -313,18 +385,25 @@ def build_graph(llm: Optional[BaseLLM] = None):
     from langgraph.graph import END, START, StateGraph
 
     graph = StateGraph(QAState)
+    graph.add_node("translate", lambda s: translate_node(s, llm))
     graph.add_node("retrieve", retrieve_node)
     graph.add_node("grade", lambda s: grade_node(s, llm))
+    graph.add_node("widen", widen_node)
     graph.add_node("rewrite", lambda s: rewrite_node(s, llm))
     graph.add_node("generate", lambda s: generate_node(s, llm))
     graph.add_node("fallback", fallback_node)
 
-    graph.add_edge(START, "retrieve")
+    graph.add_conditional_edges(
+        START, lambda s: "translate" if s.get("language") == "english" else "retrieve",
+        {"translate": "translate", "retrieve": "retrieve"},
+    )
+    graph.add_edge("translate", "retrieve")
     graph.add_edge("retrieve", "grade")
     graph.add_conditional_edges(
         "grade", decide_after_grade,
-        {"generate": "generate", "rewrite": "rewrite", "fallback": "fallback"},
+        {"generate": "generate", "widen": "widen", "rewrite": "rewrite", "fallback": "fallback"},
     )
+    graph.add_edge("widen", "grade")
     graph.add_edge("rewrite", "retrieve")
     graph.add_conditional_edges(
         "generate", decide_after_generate,
@@ -357,13 +436,14 @@ def answer_question(doc_id: str, question: str, app=None,
         "documents": [],
         "relevant": [],
         "attempts": 0,
+        "widened": False,
         "tried_queries": [],
         "found": False,
         "trace": [],
     }
     # Each rewrite costs a full retrieve+grade lap; the limit keeps a runaway
     # graph from looping past LangGraph's default recursion ceiling.
-    final = app.invoke(initial, {"recursion_limit": 6 + config.MAX_QUERY_REWRITES * 4})
+    final = app.invoke(initial, {"recursion_limit": 9 + config.MAX_QUERY_REWRITES * 4})
 
     return {
         "doc_id": doc_id,

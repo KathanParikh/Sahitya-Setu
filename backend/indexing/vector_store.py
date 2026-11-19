@@ -90,6 +90,18 @@ def get_by_ids(doc_id: str, chunk_ids: Sequence[str]) -> Dict[str, dict]:
     return {record["chunk_id"]: _to_row(record) for record in records}
 
 
+def get_by_indexes(doc_id: str, indexes: Sequence[int]) -> Dict[int, dict]:
+    """Fetch chunks by position in the book, for widening a passage with its neighbours."""
+    if not indexes:
+        return {}
+    with database.connect() as conn:
+        records = conn.execute(
+            f"SELECT {_COLUMNS} FROM chunks WHERE doc_id = %s AND chunk_index = ANY(%s)",
+            (doc_id, list(indexes)),
+        ).fetchall()
+    return {record["chunk_index"]: _to_row(record) for record in records}
+
+
 def get_all_chunks(doc_id: str) -> List[dict]:
     """Every chunk in reading order — the input to summarisation and BM25."""
     with database.connect() as conn:

@@ -408,6 +408,35 @@
   color: var(--ink-3);
 }
 
+/*
+ * In an English answer, the book's own Gujarati words under each point: set
+ * as book text (serif), so the reader can tell the proof from the app's
+ * translation even without reading Gujarati.
+ */
+.answer__source {
+  display: block;
+  margin-top: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border-left: 2px solid var(--cite-edge);
+  border-radius: 0 6px 6px 0;
+  background: var(--tint);
+  font-family: var(--font-book);
+  line-height: var(--leading-gu-read);
+}
+
+/* The page chip is the app's, not the book's: keep it in the UI face. */
+.answer__source .cite {
+  font-family: var(--font-ui);
+}
+
+.answer__source-label {
+  display: block;
+  font-family: var(--font-ui);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--ink-3);
+}
+
 /* A page citation: press it to find the passage. */
 .cite {
   display: inline;

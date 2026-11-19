@@ -71,6 +71,19 @@ export function splitCitations(line: string): AnswerPart[] {
   return parts;
 }
 
+/**
+ * An English answer line backs its point with the book's Gujarati words:
+ * "<point> — “<Gujarati from the book>” (page N)" (backend/qa/prompt_builder.py).
+ * Returns the three parts, or null when the line has no Gujarati quote.
+ */
+const SOURCE_QUOTE = /^(.*?)\s*(?:[—–:]|-{1,2})?\s*[“"]([^“”"]*[઀-૿][^“”"]*)[”"](.*)$/su;
+
+export function splitSourceQuote(line: string): { point: string; quote: string; rest: string } | null {
+  const m = line.match(SOURCE_QUOTE);
+  if (!m) return null;
+  return { point: (m[1] ?? "").trim(), quote: (m[2] ?? "").trim(), rest: (m[3] ?? "").trim() };
+}
+
 export interface AnswerBlock {
   kind: "paragraph" | "item" | "heading";
   text: string;

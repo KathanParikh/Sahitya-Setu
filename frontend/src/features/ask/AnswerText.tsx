@@ -1,9 +1,15 @@
 import { Fragment, type ReactNode } from "react";
-import { answerBlocks, langOf, splitCitations, type AnswerPart } from "../../lib/text";
+import type { ContentLanguage } from "../../api/types";
+import { answerBlocks, langOf, splitCitations, splitSourceQuote, type AnswerPart } from "../../lib/text";
 import { t } from "../../i18n";
 
 interface AnswerTextProps {
   answer: string;
+  /**
+   * The language the backend answered in. An English answer quotes the book's
+   * Gujarati for every point, so guessing from the text would call it Gujarati.
+   */
+  language?: ContentLanguage;
   /** Called with the pages a citation names. */
   onCite?: (pages: number[]) => void;
   /** Pages currently shown in the sources, to mark their citations. */
@@ -13,8 +19,10 @@ interface AnswerTextProps {
 }
 
 /** An answer (the app's words, so set in sans), with each "(પાનું ૪૨)" / "(page 42)" turned into a button. */
-export function AnswerText({ answer, onCite, activePages = [], onPreview }: AnswerTextProps) {
+export function AnswerText({ answer, language, onCite, activePages = [], onPreview }: AnswerTextProps) {
   const blocks = answerBlocks(answer);
+  const english = language === "english";
+  const lang = english ? "en" : language === "gujarati" ? "gu" : langOf(answer);
 
   const render = (text: string): ReactNode =>
     unwrapCited(splitCitations(text), Boolean(onCite)).map((part, i) => {
@@ -39,6 +47,23 @@ export function AnswerText({ answer, onCite, activePages = [], onPreview }: Answ
       );
     });
 
+  // An English line: the point in English, then the book's own Gujarati
+  // words under it, set as book text, with the page citation.
+  const renderLine = (text: string): ReactNode => {
+    const source = english ? splitSourceQuote(text) : null;
+    if (!source) return render(text);
+    return (
+      <>
+        {source.point && render(source.point)}
+        <span className="answer__source" lang="gu">
+          <span className="answer__source-label" lang="en">{t("answer.fromBook")}</span>
+          <q className="answer__quote">{source.quote}</q>
+          {source.rest && <> {render(source.rest)}</>}
+        </span>
+      </>
+    );
+  };
+
   // Consecutive list items render as one list.
   const out: ReactNode[] = [];
   let items: ReactNode[] = [];
@@ -48,17 +73,17 @@ export function AnswerText({ answer, onCite, activePages = [], onPreview }: Answ
   };
   blocks.forEach((block, i) => {
     if (block.kind === "item") {
-      items.push(<li key={i}>{render(block.text)}</li>);
+      items.push(<li key={i}>{renderLine(block.text)}</li>);
     } else {
       flush();
       const className = block.kind === "heading" ? "text-heading" : undefined;
-      out.push(<p key={i} className={className}>{render(block.text)}</p>);
+      out.push(<p key={i} className={className}>{renderLine(block.text)}</p>);
     }
   });
   flush();
 
   return (
-    <div className="answer" lang={langOf(answer)}>
+    <div className="answer" lang={lang}>
       {out}
     </div>
   );

@@ -10,12 +10,16 @@ from qa.prompt_builder import not_found_answer
 NOT_FOUND = not_found_answer("gujarati")
 
 
-def run(llm, search, question="નાટકમાં વાચિક અભિનય એટલે શું?"):
-    with mock.patch.object(graph, "hybrid_search", side_effect=search):
+def run(llm, search, question="નાટકમાં વાચિક અભિનય એટલે શું?", widen=None):
+    # Widening reads neighbouring chunks from the database; by default it
+    # changes nothing here, so these tests never touch the database.
+    widen = widen or (lambda doc_id, chunks: list(chunks))
+    with mock.patch.object(graph, "hybrid_search", side_effect=search), \
+         mock.patch.object(graph, "widen_passages", side_effect=widen):
         return graph.answer_question("doc", question, app=graph.build_graph(llm))
 
 
-def book(doc_id, query, top_k=None):
+def book(doc_id, query, top_k=None, **kw):
     """P201 only for queries that use the book's vocabulary."""
     return [P201] if "વાચિક" in query or "સંવાદ" in query else [UNRELATED]
 
@@ -31,7 +35,7 @@ class Paths(unittest.TestCase):
 
     def test_absent_answer_falls_back_after_max_rewrites(self):
         llm = ScriptedLLM(relevant=lambda p: False)
-        r = run(llm, lambda d, q, top_k=None: [UNRELATED], "કાબૂકીની શરૂઆત કોણે કરી?")
+        r = run(llm, lambda d, q, top_k=None, **kw: [UNRELATED], "કાબૂકીની શરૂઆત કોણે કરી?")
         self.assertFalse(r["found"])
         self.assertEqual(r["answer"], NOT_FOUND)
         self.assertEqual(r["rewrites_used"], config.MAX_QUERY_REWRITES)
@@ -47,14 +51,77 @@ class Paths(unittest.TestCase):
 
 
 class Grounding(unittest.TestCase):
+    def test_english_question_is_searched_in_gujarati(self):
+        searches = []
+
+        def search(doc_id, query, top_k=None, extra_vector_query=None):
+            searches.append((query, extra_vector_query))
+            return book(doc_id, query)
+
+        llm = ScriptedLLM(relevant=lambda p: "વાચિક" in p,
+                          translate=lambda p: "નાટકમાં વાચિક અભિનય એટલે શું?",
+                          answers=["“નટોની ક્રિયા કે કાર્ય એટલે નટોનો આંગિક અભિનય” (page 201)"])
+        r = run(llm, search, "What is vachik abhinay in drama?")
+        self.assertTrue(r["found"])
+        # Searched with the Gujarati translation, plus the English as a vector query.
+        self.assertEqual(searches[0], ("નાટકમાં વાચિક અભિનય એટલે શું?",
+                                       "What is vachik abhinay in drama?"))
+        # Grading still judged the user's English question.
+        grade_prompt = next(p for p in llm.prompts if '"grades"' in p)
+        self.assertIn("Question: What is vachik abhinay in drama?", grade_prompt)
+
+    def test_gujarati_question_is_not_translated(self):
+        llm = ScriptedLLM(relevant=lambda p: "વાચિક" in p,
+                          answers=["“નટોની ક્રિયા કે કાર્ય એટલે નટોનો આંગિક અભિનય” (પાનું 201)"])
+        run(llm, book)
+        self.assertFalse(any(p.startswith("Translate this question") for p in llm.prompts))
+
+    def test_translation_in_english_falls_back_to_english_search(self):
+        searches = []
+
+        def search(doc_id, query, top_k=None, extra_vector_query=None):
+            searches.append(query)
+            return [UNRELATED]
+
+        llm = ScriptedLLM(relevant=lambda p: False, translate=lambda p: "Sorry, I cannot.")
+        r = run(llm, search, "Who started Kabuki?")
+        self.assertEqual(searches[0], "Who started Kabuki?")
+        self.assertIn("rejected", r["trace"][0])
+
+    def test_answer_cut_at_a_chunk_boundary_is_found_by_widening(self):
+        # The retrieved chunk has only half the scene; its neighbour has the rest.
+        half = chunk("નાટકના સંવાદો એટલે", 201, 201, "doc:1")
+        widened = []
+
+        def widen(doc_id, chunks):
+            widened.append([c.chunk_id for c in chunks])
+            return [P201]
+
+        llm = ScriptedLLM(relevant=lambda p: "વાચિક અભિનય" in p,
+                          answers=["“નાટકના સંવાદો એટલે નટોનો વાચિક અભિનય” (પાનું 201)"])
+        r = run(llm, lambda d, q, top_k=None, **kw: [half], widen=widen)
+        self.assertTrue(r["found"], r["trace"])
+        self.assertEqual(r["rewrites_used"], 0)  # read further instead of searching again
+        self.assertEqual(widened, [["doc:1"]])
+        self.assertEqual([t["node"] for t in r["trace"]][:4], ["retrieve", "grade", "widen", "grade"])
+
+    def test_widening_happens_once_per_question(self):
+        calls = []
+        llm = ScriptedLLM(relevant=lambda p: False)
+        r = run(llm, lambda d, q, top_k=None, **kw: [UNRELATED],
+                widen=lambda doc_id, chunks: calls.append(1) or list(chunks))
+        self.assertFalse(r["found"])
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(r["rewrites_used"], config.MAX_QUERY_REWRITES)
+
     def test_regeneration_recovers_exact_answer(self):
         llm = ScriptedLLM(answers=["“નટો દ્વારા કરવામાં આવતી ક્રિયા, હાવભાવ” (પાનું 201)",
                                    "“નટોની ક્રિયા કે કાર્ય એટલે નટોનો આંગિક અભિનય” (પાનું 201)"])
         r = run(llm, book)
         self.assertTrue(r["found"], r["trace"])
         self.assertIn("નટોની ક્રિયા કે કાર્ય", r["answer"])
-        self.assertIn("failed verification", llm.prompts[-1])
-        self.assertIn("quote not in passages", llm.prompts[-1])
+        regrounding = next(p for p in llm.prompts if "failed verification" in p)
+        self.assertIn("quote not in passages", regrounding)
 
     def test_twice_ungrounded_answer_falls_back(self):
         llm = ScriptedLLM(answers=["“નટો દ્વારા કરવામાં આવતી ક્રિયા, હાવભાવ” (પાનું 201)"])
@@ -98,8 +165,10 @@ class ClaimVerificationInGraph(unittest.TestCase):
         self.assertIn("claim not supported", gen["regenerated_problems"][0])
 
     def test_unsupported_claim_regenerates_into_a_verbatim_answer(self):
+        # The verifier rejects the paraphrase and accepts the exact copy (an
+        # exact copy is verified too, against the question).
         llm = ScriptedLLM(answers=[self.PARAPHRASE, "“નાટકના સંવાદો એટલે નટોનો વાચિક અભિનય” (પાનું 201)"],
-                          supported=lambda c: False)
+                          supported=lambda c: c.startswith("નાટકના સંવાદો એટલે"))
         r = run(llm, book)
         self.assertTrue(r["found"], r["trace"])
         self.assertIn("નાટકના સંવાદો", r["answer"])
@@ -133,7 +202,7 @@ class PageCitationInGraph(unittest.TestCase):
     def test_page_that_cannot_be_confirmed_falls_back(self):
         unreadable = chunk(P201.text, 301, 302, "nodoc:1")  # no page text to place it
         llm = ScriptedLLM(answers=["“નાટકના સંવાદો એટલે નટોનો વાચિક અભિનય” (પાનું 302)"])
-        r = run(llm, lambda d, q, top_k=None: [unreadable])
+        r = run(llm, lambda d, q, top_k=None, **kw: [unreadable])
         self.assertFalse(r["found"])
         self.assertEqual(r["citations"], [])
 
@@ -147,6 +216,21 @@ class GradeAndRewriteNodes(unittest.TestCase):
         llm = ScriptedLLM(relevant=lambda p: "વાચિક" in p)
         out = graph.grade_node(self.state([UNRELATED, P201, UNRELATED]), llm)
         self.assertEqual([c.chunk_id for c in out["relevant"]], [P201.chunk_id])
+
+    def test_grade_judges_the_users_question_not_the_rewrite(self):
+        prompts = []
+
+        class Recording(ScriptedLLM):
+            def _complete(self, prompt, system, temperature):
+                prompts.append(prompt)
+                return super()._complete(prompt, system, temperature)
+
+        state = self.state([P201])
+        state["original_question"] = "આ પુસ્તકનાં મુખ્ય પાત્રો કોણ છે?"
+        state["question"] = "પુસ્તક મુખ્ય પાત્રો"
+        graph.grade_node(state, Recording())
+        self.assertIn("Question: આ પુસ્તકનાં મુખ્ય પાત્રો કોણ છે?", prompts[0])
+        self.assertNotIn("Question: પુસ્તક મુખ્ય પાત્રો", prompts[0])
 
     def test_grade_ignores_out_of_range_passage_numbers(self):
         class Odd(ScriptedLLM):
@@ -218,7 +302,8 @@ class CitationCorrection(unittest.TestCase):
         r = run(llm, book)
         self.assertTrue(r["found"], r["trace"])
         self.assertIn("(પાનું 201)", r["answer"])
-        self.assertEqual(len(llm.prompts), 2)  # grade + answer; no regeneration needed
+        # grade + answer + claim check; no regeneration needed
+        self.assertEqual(len(llm.prompts), 3)
 
     def test_wrong_content_is_still_refused(self):
         llm = ScriptedLLM(relevant=lambda p: "વાચિક" in p, supported=lambda c: False,

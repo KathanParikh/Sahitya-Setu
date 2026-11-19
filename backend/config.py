@@ -80,6 +80,9 @@ RRF_K = int(os.getenv("SS_RRF_K", 60))
 MAX_QUERY_REWRITES = int(os.getenv("SS_MAX_QUERY_REWRITES", 2))
 # How many of the top-k chunks must be graded relevant to proceed to answering.
 MIN_RELEVANT_CHUNKS = int(os.getenv("SS_MIN_RELEVANT_CHUNKS", 1))
+# When every passage fails grading, the top N are widened with their
+# neighbouring chunks and graded once more (indexing.hybrid_search.widen_passages).
+WIDEN_TOP_N = int(os.getenv("SS_WIDEN_TOP_N", 3))
 
 
 # ------------------------------------------------------------------ llm -----

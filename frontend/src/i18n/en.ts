@@ -198,6 +198,7 @@ export const en = {
   "answer.backToQuestions": "All questions",
   "answer.followUp": "Ask another question",
   "answer.provenance": "Answered from {passages} in",
+  "answer.fromBook": "From the book",
   "answer.failedTitle": "This question was not answered.",
   "answer.copy": "Copy answer",
   "answer.copied": "Copied",

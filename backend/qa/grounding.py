@@ -70,6 +70,21 @@ def _quotes(line: str) -> List[str]:
         spans.append(m.group(1) or m.group(2))
         outside = outside.replace(m.group(0), " ")
     return spans + _SINGLE_QUOTE_RE.findall(outside)
+
+
+def _without_quotes(text: str) -> str:
+    """`text` with its quoted spans removed: the answer's own words.
+
+    Used to tell an English answer from a Gujarati one. An English answer
+    quotes the book's Gujarati sentence for every point, so counting letters
+    over the whole line can make it look Gujarati. Quotes are checked
+    character by character on their own, so leaving them out here loses nothing.
+    """
+    for span in _quotes(text):
+        text = text.replace(span, " ")
+    return text
+
+
 _ZERO_WIDTH = dict.fromkeys(map(ord, "‌‍"))
 _GUJARATI_DIGITS = str.maketrans("૦૧૨૩૪૫૬૭૮૯", "0123456789")
 # "(પાનું 201)", "(પાનાં 196-197)", "(page 42)", "(pages 12–14, 20)"
@@ -167,8 +182,9 @@ def _unsupported_tokens(answer: str, chunks: Sequence) -> List[str]:
     for n in _NUMBER_RE.findall(body):
         if n.translate(_GUJARATI_DIGITS) not in numbers:
             missing.append(n)
-    gujarati = len(re.findall(r"[\u0A80-\u0AFF]", body))
-    if gujarati <= len(re.findall(r"[A-Za-z]", body)):
+    own = _without_quotes(body)
+    gujarati = len(re.findall(r"[\u0A80-\u0AFF]", own))
+    if gujarati <= len(re.findall(r"[A-Za-z]", own)):
         return missing
     for word in _LATIN_WORD_RE.findall(body):
         w = word.lower().strip("'’-")
@@ -323,7 +339,7 @@ def extract_claims(answer: str, chunks: Sequence) -> List[Claim]:
             # Only an exact copy skips the semantic check: a single inserted
             # "ન" or a changed letter can reverse the meaning.
             verbatim = bool(plain) and any(plain in f for f in forms)
-            if _is_gujarati(body) and not verbatim:
+            if _is_gujarati(_without_quotes(body)) and not verbatim:
                 joined = " ".join(forms)
                 lowered = joined.lower()
                 words = set(tokenize(joined))
@@ -469,18 +485,26 @@ def snap_citations(answer: str, chunks: Sequence) -> Tuple[str, List[Tuple[str, 
     return "\n".join(lines), moved
 
 
-def verify_claims(answer: str, chunks: Sequence, llm) -> Tuple[List[str], int]:
-    """Semantic check of every claim that is not a near-verbatim copy.
+def verify_claims(answer: str, chunks: Sequence, llm,
+                  question: str = "") -> Tuple[List[str], int]:
+    """Semantic check of every claim, as an answer to `question`.
+
+    Exact copies used to skip this check, since a sentence copied from the
+    book cannot misstate it. But a copy can still be the wrong answer: asked
+    who the wallet thief was ('ચીલઝડપ', pages 93-94), the model answered
+    "મિસ્ટર જૈન", a name from the passage that is not the thief (કેળકર is),
+    and nothing checked it. So every claim goes to the verifier, with the
+    question it is meant to answer.
 
     Returns (problems, claims_sent_to_the_llm). Raises LLMError if the
     verifier cannot be reached: an unverifiable answer is never shown.
     """
     from qa import prompt_builder  # avoid an import cycle at module load
 
-    pending = [c for c in extract_claims(answer, chunks) if c.passages and not c.verbatim]
+    pending = [c for c in extract_claims(answer, chunks) if c.passages]
     if not pending:
         return [], 0
-    payload = llm.generate_json(prompt_builder.build_claim_check_prompt(pending),
+    payload = llm.generate_json(prompt_builder.build_claim_check_prompt(pending, question),
                                 system=prompt_builder.CLAIM_CHECK_SYSTEM, temperature=0.0)
     verdicts = payload.get("claims", []) if isinstance(payload, dict) else payload
     supported = {}

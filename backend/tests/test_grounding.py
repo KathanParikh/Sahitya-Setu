@@ -289,9 +289,31 @@ class ClaimsSemantic(unittest.TestCase):
         problems, checked = grounding.verify_claims(answer, chunks, llm)
         return problems, checked, llm.prompts
 
-    def test_verbatim_answer_makes_no_verifier_call(self):
-        problems, checked, prompts = self.run_verify("“નાટકના સંવાદો એટલે નટોનો વાચિક અભિનય” (પાનું 201)", [P201])
-        self.assertEqual((problems, checked, prompts), ([], 0, []))
+    def test_verbatim_answer_is_still_verified_with_the_question(self):
+        from tests.helpers import ScriptedLLM
+        llm = ScriptedLLM()
+        problems, checked = grounding.verify_claims(
+            "“નાટકના સંવાદો એટલે નટોનો વાચિક અભિનય” (પાનું 201)", [P201], llm,
+            question="વાચિક અભિનય એટલે શું?")
+        self.assertEqual((problems, checked), ([], 1))
+        self.assertIn("Question the claims answer: વાચિક અભિનય એટલે શું?", llm.prompts[0])
+
+    def test_claim_check_asks_whether_the_claim_answers_the_question(self):
+        from qa.prompt_builder import build_claim_check_prompt
+        claims = grounding.extract_claims("મિસ્ટર જૈનનો પાકીટનો ચોર (પાનું 201)", [P201])
+        prompt = build_claim_check_prompt(claims, question="પાકીટનો ચોર કોણ નીકળ્યો?")
+        self.assertIn("does not actually answer the question", prompt)
+        # Without a question there is nothing to answer, so the rule is left out.
+        self.assertNotIn("does not actually answer", build_claim_check_prompt(claims))
+
+    def test_name_copied_from_the_passage_can_still_be_the_wrong_answer(self):
+        # Live failure: "who was the wallet thief?" answered with a name that
+        # is in the passage, but not as the thief. Copying is not answering.
+        c = chunk("કુમારે કહ્યું, મિસ્ટર જૈન નિર્દોષ છે. પાકીટનો ચોર કેળકર છે.", 94, 94, "doc:94")
+        problems, checked, _ = self.run_verify("મિસ્ટર જૈન (પાનું 94)", [c],
+                                               supported=lambda claim: "કેળકર" in claim)
+        self.assertEqual(checked, 1)
+        self.assertIn("claim not supported", problems[0])
 
     def test_paraphrase_is_sent_with_its_passage_and_unmatched_words(self):
         a = "‘અંધાયુગ’ની રજૂઆત ઓકુનીએ ‘નોહ’ અને ‘કાબૂકી’માં કરી (પાનું 15)"
@@ -327,3 +349,32 @@ class ClaimsSemantic(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EnglishAnswerWithGujaratiQuote(unittest.TestCase):
+    """English answers back each point with the book's Gujarati sentence."""
+    LINE = ("- Actors' physical action is called aangik abhinay — "
+            "“નટોની ક્રિયા કે કાર્ય એટલે નટોનો આંગિક અભિનય” (page 201)")
+
+    def test_english_point_with_exact_quote_passes(self):
+        r = grounding.check_answer(self.LINE, [P201])
+        self.assertTrue(r.ok, r.problems)
+
+    def test_english_words_are_not_checked_against_the_book(self):
+        # A short English point with a long quote: the Gujarati letters
+        # outnumber the English ones, but the line is still an English answer,
+        # so "Two kinds of acting" are not "invented words".
+        line = ("- Two kinds of acting — “નાટકના સંવાદો એટલે નટોનો વાચિક અભિનય અને "
+                "નટોની ક્રિયા કે કાર્ય એટલે નટોનો આંગિક અભિનય” (page 201)")
+        self.assertEqual(grounding._unsupported_tokens(line, [P201]), [])
+        self.assertTrue(grounding.check_answer(line, [P201]).ok)
+
+    def test_altered_gujarati_quote_still_fails(self):
+        altered = self.LINE.replace("આંગિક", "વાચિક")
+        r = grounding.check_answer(altered, [P201])
+        self.assertIn("quote not in passages", " ".join(r.problems))
+
+    def test_quote_lets_a_two_page_passage_pin_its_page(self):
+        # P201 spans pages 201-202; the quote is what places the claim on 201.
+        claim = grounding.extract_claims(self.LINE, [P201])[0]
+        self.assertEqual(grounding.locate_pages(claim, P201), {201})

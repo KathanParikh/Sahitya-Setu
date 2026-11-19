@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { answerBlocks, findSpans, langOf, parsePages, quotedSpans, splitCitations } from "./text";
+import { answerBlocks, findSpans, langOf, parsePages, quotedSpans, splitCitations, splitSourceQuote } from "./text";
 
 describe("langOf", () => {
   it("detects Gujarati script", () => {
@@ -94,5 +94,29 @@ describe("findSpans", () => {
 
   it("returns nothing when the quote is not in the passage", () => {
     expect(findSpans("some passage text", ["missing words"])).toEqual([]);
+  });
+});
+
+describe("splitSourceQuote", () => {
+  it("splits an English point from the book's Gujarati quote and its citation", () => {
+    expect(
+      splitSourceQuote("He was born in Karachi — “કરસનદાસ માણેકનો જન્મ કરાંચીમાં થયો હતો.” (page 16)"),
+    ).toEqual({
+      point: "He was born in Karachi",
+      quote: "કરસનદાસ માણેકનો જન્મ કરાંચીમાં થયો હતો.",
+      rest: "(page 16)",
+    });
+  });
+
+  it("accepts straight quotes and a plain hyphen", () => {
+    expect(splitSourceQuote('Fifteen notes - "બે-બે હજારની પંદર નોટો" (page 91)')?.quote).toBe("બે-બે હજારની પંદર નોટો");
+  });
+
+  it("keeps an English-only quote in the point", () => {
+    expect(splitSourceQuote('The play is called "The Dead Awaken" (page 15)')).toBeNull();
+  });
+
+  it("returns null for a line without a quote", () => {
+    expect(splitSourceQuote("Fifteen notes went missing (page 91)")).toBeNull();
   });
 });

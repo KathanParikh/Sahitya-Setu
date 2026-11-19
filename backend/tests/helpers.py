@@ -59,8 +59,10 @@ class ScriptedLLM(BaseLLM):
     name = "scripted"
 
     def __init__(self, relevant=lambda text: True, rewrite=lambda prompt: "rewritten query",
-                 answers=("answer",), supported=lambda claim: True):
+                 answers=("answer",), supported=lambda claim: True,
+                 translate=lambda prompt: "ગુજરાતી પ્રશ્ન"):
         self.relevant, self.rewrite, self.answers = relevant, rewrite, list(answers)
+        self.translate = translate
         self.supported = supported
         self.prompts = []
 
@@ -78,4 +80,6 @@ class ScriptedLLM(BaseLLM):
                 for i, p in enumerate(passages, start=1)]})
         if prompt.startswith("Original question"):
             return self.rewrite(prompt)
+        if prompt.startswith("Translate this question"):
+            return self.translate(prompt)
         return self.answers.pop(0) if len(self.answers) > 1 else self.answers[0]

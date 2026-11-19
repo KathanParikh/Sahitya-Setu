@@ -94,7 +94,14 @@ def build_answer_prompt(question: str, chunks: Sequence, language: str = None,
         instructions = (
             "Instructions:\n"
             "- Answer using only the passages above.\n"
-            "- Answer in English.\n"
+            "- Answer in English, and back every point with the book's own Gujarati words. "
+            "Write each point on one line in this form:\n"
+            "  - <the point in English> — “<the Gujarati sentence or clause from the passage "
+            "that states it>” (page N)\n"
+            "  The reader may not know Gujarati: the English is for understanding, the "
+            "Gujarati is the proof. Copy the Gujarati character for character from the "
+            "passage, its spelling included even where it looks wrong. Do not translate it, "
+            "shorten it inside a word, or join pieces from different places.\n"
             "- After each point, cite the exact page the text is on, e.g. (page 42). In a "
             "passage, text after a ⟪પાનું N⟫ mark is on page N and text before it is on the "
             "page before. Cite (pages 42-43) only for a sentence that runs across both. Do not "
@@ -143,11 +150,13 @@ CLAIM_CHECK_SYSTEM = (
 )
 
 
-def build_claim_check_prompt(claims: Sequence) -> str:
+def build_claim_check_prompt(claims: Sequence, question: str = "") -> str:
     """Ask for a supported/unsupported verdict on each claim against its cited passages.
 
     `claims` are qa.grounding.Claim objects. Each passage is printed once and
     claims refer to it by number, so a long answer does not repeat passages.
+    `question` is what the claims answer: a name that is in the passage is
+    still wrong if the passage gives a different person as the answer.
     """
     passage_ids: dict = {}
     blocks: List[str] = []
@@ -165,9 +174,20 @@ def build_claim_check_prompt(claims: Sequence) -> str:
         listing.append(f"Claim {i} (cites {refs}): {claim.text}\n"
                        f"  Words in this claim not found in its passages: {novel}")
     return (
+        (f"Question the claims answer: {question}\n\n===\n\n" if question else "") +
         "Passages:\n\n" + "\n\n---\n\n".join(blocks) + "\n\n===\n\n"
         "Claims:\n\n" + "\n\n".join(listing) + "\n\n===\n\n"
         "For each claim, decide whether it is fully supported by the passages it cites.\n"
+        + ("- The claims are an answer to the question above. Read each claim as that "
+           "answer: UNSUPPORTED if the passages give a different answer to the question, "
+           "even when every word of the claim appears in them (for example a suspect "
+           "named where the passages name someone else as the one who did it). A claim "
+           "that only repeats a name or phrase must be what the passages say answers "
+           "the question.\n"
+           "- UNSUPPORTED if the claim does not actually answer the question: it restates "
+           "the question or its words, or gives a phrase from the passage without the "
+           "information asked for (asked who did something, it names no one who did it).\n"
+           if question else "") +
         "- SUPPORTED only if every piece of information in the claim is stated in, or "
         "directly follows from, those passages. Rewording and reordering are fine.\n"
         "- UNSUPPORTED if it adds anything those passages do not state: a name, title, "
@@ -248,11 +268,38 @@ def build_rewrite_prompt(question: str, attempt: int = 1, previous: Sequence[str
         "The search returned nothing relevant. Rewrite the query so a keyword + semantic "
         f"search over a Gujarati book is more likely to find the right passage.\n\n"
         f"Strategy for this attempt: {strategy}\n\n"
-        "Keep the query in the same script as the original question. You may add synonyms "
+        "Write the query in Gujarati script, even if the original question is in English: "
+        "the book is in Gujarati, and an English query cannot match its words. You may add synonyms "
         "and domain vocabulary for the subject the question already names. Do not add "
         "names, dates, numbers or facts that are not in the original question: you have not "
         "seen the book, and a guessed answer in the query biases the search toward it. "
         "Output only the rewritten query."
+    )
+
+
+# ----------------------------------------------------------- translation ----
+TRANSLATE_SYSTEM = (
+    "You translate English questions about a Gujarati book into Gujarati, for searching "
+    "the book. You reply with the Gujarati question only — no explanation."
+)
+
+
+def build_translate_prompt(question: str) -> str:
+    """English question -> Gujarati search query.
+
+    BM25 needs the book's own words, and e5 matches Gujarati to Gujarati far
+    better than English to Gujarati, so an English question is searched in
+    Gujarati. The translation is used only for searching; grading and the
+    answer still work from the user's English question.
+    """
+    return (
+        f"Translate this question about a Gujarati book into natural Gujarati.\n\n"
+        f"Question: {question}\n\n"
+        "- Write person and place names in Gujarati script, spelled the usual Gujarati way "
+        "(for example Karsandas -> કરસનદાસ).\n"
+        "- Translate only. Do not answer the question and do not add any name, date, number "
+        "or fact that the question does not contain.\n"
+        "- Output only the Gujarati question."
     )
 
 
